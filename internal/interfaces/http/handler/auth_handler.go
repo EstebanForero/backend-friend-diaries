@@ -144,18 +144,20 @@ func (h *AuthHandler) clearRefreshCookie(w http.ResponseWriter) {
 }
 
 func (h *AuthHandler) refreshTokenFromRequest(r *http.Request) (string, error) {
+	// 1. httpOnly cookie (set on login for all clients)
 	if cookie, err := r.Cookie("refresh_token"); err == nil && cookie.Value != "" {
 		return cookie.Value, nil
 	}
 
-	if token := r.Header.Get("X-Refresh-Token"); isNativeClient(r) && token != "" {
+	// 2. X-Refresh-Token header
+	if token := r.Header.Get("X-Refresh-Token"); token != "" {
 		return token, nil
 	}
 
-	if !isNativeClient(r) || r.Body == nil {
+	// 3. JSON body fallback (any client)
+	if r.Body == nil {
 		return "", errors.New("missing refresh token")
 	}
-
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
 	}
@@ -168,10 +170,9 @@ func (h *AuthHandler) refreshTokenFromRequest(r *http.Request) (string, error) {
 	return req.RefreshToken, nil
 }
 
-func nativeRefreshToken(r *http.Request, token string) *string {
-	if !isNativeClient(r) {
-		return nil
-	}
+// nativeRefreshToken returns the token in the response body for any client,
+// so both Tauri and web can persist it and use it as a fallback.
+func nativeRefreshToken(_ *http.Request, token string) *string {
 	return &token
 }
 

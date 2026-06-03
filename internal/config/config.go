@@ -41,8 +41,8 @@ const (
 	defaultAppEnv           = "development"
 	defaultDatabaseURL      = "postgres://friend_diaries:friend_diaries_pass@localhost:5433/friend_diaries?sslmode=disable"
 	defaultJWTSecret        = "change-this-secret-in-production"
-	defaultJWTAccessExpiry  = 24 * time.Hour
-	defaultJWTRefreshExpiry = 7 * 24 * time.Hour
+	defaultJWTAccessExpiry  = 72 * time.Hour        // 3 days
+	defaultJWTRefreshExpiry = 30 * 24 * time.Hour   // 30 days
 	defaultCORSOrigins      = "http://localhost:5173,http://tauri.localhost,https://tauri.localhost"
 )
 
