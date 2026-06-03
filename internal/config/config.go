@@ -1,10 +1,10 @@
 package config
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -36,38 +36,41 @@ type CORSConfig struct {
 	AllowedOrigins []string
 }
 
+const (
+	defaultServerPort       = "8080"
+	defaultAppEnv           = "development"
+	defaultDatabaseURL      = "postgres://friend_diaries:friend_diaries_pass@localhost:5433/friend_diaries?sslmode=disable"
+	defaultJWTSecret        = "change-this-secret-in-production"
+	defaultJWTAccessExpiry  = 24 * time.Hour
+	defaultJWTRefreshExpiry = 7 * 24 * time.Hour
+	defaultCORSOrigins      = "http://localhost:5173"
+)
+
 func Load() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
 		slog.Info("no .env file found, reading from environment variables")
 	}
 
-	jwtAccessExpiry, err := parseDuration(getEnv("JWT_ACCESS_EXPIRY", "24h"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid JWT_ACCESS_EXPIRY: %w", err)
+	jwtSecret := getEnv("JWT_SECRET", defaultJWTSecret)
+	if jwtSecret == defaultJWTSecret {
+		slog.Warn("using default JWT_SECRET; set JWT_SECRET before running in production")
 	}
-
-	jwtRefreshExpiry, err := parseDuration(getEnv("JWT_REFRESH_EXPIRY", "168h"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid JWT_REFRESH_EXPIRY: %w", err)
-	}
-
-	allowedOrigins := splitComma(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173"))
 
 	return &Config{
 		Server: ServerConfig{
-			Port: getEnv("SERVER_PORT", "8080"),
-			Env:  getEnv("APP_ENV", "development"),
+			Port: getEnvPort("SERVER_PORT", defaultServerPort),
+			Env:  getEnv("APP_ENV", defaultAppEnv),
 		},
 		Database: DatabaseConfig{
-			URL: getEnv("DATABASE_URL", "postgres://friend_diaries:friend_diaries_pass@localhost:5432/friend_diaries?sslmode=disable"),
+			URL: getEnv("DATABASE_URL", defaultDatabaseURL),
 		},
 		JWT: JWTConfig{
-			Secret:        getEnv("JWT_SECRET", "change-this-secret-in-production"),
-			AccessExpiry:  jwtAccessExpiry,
-			RefreshExpiry: jwtRefreshExpiry,
+			Secret:        jwtSecret,
+			AccessExpiry:  getEnvDuration("JWT_ACCESS_EXPIRY", defaultJWTAccessExpiry),
+			RefreshExpiry: getEnvDuration("JWT_REFRESH_EXPIRY", defaultJWTRefreshExpiry),
 		},
 		CORS: CORSConfig{
-			AllowedOrigins: allowedOrigins,
+			AllowedOrigins: splitComma(getEnv("CORS_ALLOWED_ORIGINS", defaultCORSOrigins)),
 		},
 	}, nil
 }
@@ -77,14 +80,35 @@ func (c *Config) IsDevelopment() bool {
 }
 
 func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 		return value
 	}
 	return defaultValue
 }
 
-func parseDuration(s string) (time.Duration, error) {
-	return time.ParseDuration(s)
+func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return defaultValue
+	}
+
+	duration, err := time.ParseDuration(value)
+	if err != nil || duration <= 0 {
+		slog.Warn("invalid duration env var; using default", "key", key, "value", value, "default", defaultValue.String())
+		return defaultValue
+	}
+
+	return duration
+}
+
+func getEnvPort(key string, defaultValue string) string {
+	value := strings.TrimPrefix(getEnv(key, defaultValue), ":")
+	port, err := strconv.Atoi(value)
+	if err != nil || port < 1 || port > 65535 {
+		slog.Warn("invalid port env var; using default", "key", key, "value", value, "default", defaultValue)
+		return defaultValue
+	}
+	return value
 }
 
 func splitComma(s string) []string {
@@ -92,12 +116,15 @@ func splitComma(s string) []string {
 	start := 0
 	for i := 0; i <= len(s); i++ {
 		if i == len(s) || s[i] == ',' {
-			part := s[start:i]
+			part := strings.TrimSpace(s[start:i])
 			if part != "" {
 				result = append(result, part)
 			}
 			start = i + 1
 		}
+	}
+	if len(result) == 0 {
+		return splitComma(defaultCORSOrigins)
 	}
 	return result
 }
