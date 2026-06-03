@@ -61,6 +61,7 @@ func ToUserResponse(u *user.User) UserResponse {
 }
 
 type AuthResponse struct {
-	AccessToken string       `json:"access_token"`
-	User        UserResponse `json:"user"`
+	AccessToken  string       `json:"access_token"`
+	RefreshToken *string      `json:"refresh_token,omitempty"`
+	User         UserResponse `json:"user"`
 }

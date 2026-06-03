@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -71,19 +73,20 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	h.setRefreshCookie(w, pair.RefreshToken)
 
 	response.OK(w, dto.AuthResponse{
-		AccessToken: pair.AccessToken,
-		User:        dto.ToUserResponse(pair.User),
+		AccessToken:  pair.AccessToken,
+		RefreshToken: nativeRefreshToken(r, pair.RefreshToken),
+		User:         dto.ToUserResponse(pair.User),
 	})
 }
 
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
-	refreshToken, err := r.Cookie("refresh_token")
+	refreshToken, err := h.refreshTokenFromRequest(r)
 	if err != nil {
 		response.Error(w, apperror.Unauthorized("missing refresh token"))
 		return
 	}
 
-	pair, err := h.authService.Refresh(r.Context(), refreshToken.Value)
+	pair, err := h.authService.Refresh(r.Context(), refreshToken)
 	if err != nil {
 		h.clearRefreshCookie(w)
 		response.Error(w, err)
@@ -93,8 +96,9 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	h.setRefreshCookie(w, pair.RefreshToken)
 
 	response.OK(w, dto.AuthResponse{
-		AccessToken: pair.AccessToken,
-		User:        dto.ToUserResponse(pair.User),
+		AccessToken:  pair.AccessToken,
+		RefreshToken: nativeRefreshToken(r, pair.RefreshToken),
+		User:         dto.ToUserResponse(pair.User),
 	})
 }
 
@@ -137,4 +141,40 @@ func (h *AuthHandler) clearRefreshCookie(w http.ResponseWriter) {
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 	})
+}
+
+func (h *AuthHandler) refreshTokenFromRequest(r *http.Request) (string, error) {
+	if cookie, err := r.Cookie("refresh_token"); err == nil && cookie.Value != "" {
+		return cookie.Value, nil
+	}
+
+	if token := r.Header.Get("X-Refresh-Token"); isNativeClient(r) && token != "" {
+		return token, nil
+	}
+
+	if !isNativeClient(r) || r.Body == nil {
+		return "", errors.New("missing refresh token")
+	}
+
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	if req.RefreshToken == "" {
+		return "", errors.New("missing refresh token")
+	}
+	return req.RefreshToken, nil
+}
+
+func nativeRefreshToken(r *http.Request, token string) *string {
+	if !isNativeClient(r) {
+		return nil
+	}
+	return &token
+}
+
+func isNativeClient(r *http.Request) bool {
+	return r.Header.Get("X-Friend-Diaries-Client") == "tauri"
 }
