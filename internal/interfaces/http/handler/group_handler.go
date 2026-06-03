@@ -93,20 +93,12 @@ func (h *GroupHandler) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.groupRepo.FindActiveMembers(r.Context(), groupID)
-	if err != nil {
-		response.Error(w, apperror.Internal("fetching members", err))
-		return
-	}
-
-	// Enrich with user details via a joined query on group_members.
 	result, err := h.groupRepo.FindActiveMembersWithDetails(r.Context(), groupID)
 	if err != nil {
 		response.Error(w, apperror.Internal("fetching member details", err))
 		return
 	}
 
-	_ = members // already fetched via enriched query
 	response.OK(w, result)
 }
 

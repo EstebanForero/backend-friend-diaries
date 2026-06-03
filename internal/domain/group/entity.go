@@ -50,11 +50,11 @@ func (m *Member) IsActive() bool {
 
 // MemberDetail is a read model combining group_members + users data.
 type MemberDetail struct {
-	UserID      string
-	DisplayName string
-	AppID       string
-	Role        MemberRole
-	JoinedAt    *string
+	UserID      string     `json:"user_id"`
+	DisplayName string     `json:"display_name"`
+	AppID       string     `json:"app_id"`
+	Role        MemberRole `json:"role"`
+	JoinedAt    *string    `json:"joined_at"`
 }
 
 func (g *Group) MaxMembers(ownerIsPremium bool) int {
