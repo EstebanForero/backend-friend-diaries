@@ -181,3 +181,13 @@ func formatOptionalTime(t *time.Time) *string {
 	s := fmt.Sprintf("%s", t.Format(time.RFC3339))
 	return &s
 }
+
+func (h *GroupHandler) GetPendingInvitations(w http.ResponseWriter, r *http.Request) {
+	userID := mustUserID(r)
+	invitations, err := h.groupRepo.FindPendingInvitationsWithDetails(r.Context(), userID)
+	if err != nil {
+		response.Error(w, apperror.Internal("fetching invitations", err))
+		return
+	}
+	response.OK(w, invitations)
+}

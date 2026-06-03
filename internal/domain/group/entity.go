@@ -48,6 +48,13 @@ func (m *Member) IsActive() bool {
 	return m.InvitationStatus == InvitationAccepted
 }
 
+// PendingInvitation is a read model for an invite the current user received.
+type PendingInvitation struct {
+	GroupID   uuid.UUID `json:"group_id"`
+	GroupName string    `json:"group_name"`
+	InvitedAt time.Time `json:"invited_at"`
+}
+
 // MemberDetail is a read model combining group_members + users data.
 type MemberDetail struct {
 	UserID      string     `json:"user_id"`

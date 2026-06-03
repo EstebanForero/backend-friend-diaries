@@ -25,13 +25,14 @@ const (
 )
 
 type Notification struct {
-	ID          uuid.UUID
-	RecipientID uuid.UUID
-	ActorID     uuid.UUID
-	Type        Type
-	ReferenceID uuid.UUID
-	RefType     RefType
-	Metadata    map[string]string
-	IsRead      bool
-	CreatedAt   time.Time
+	ID               uuid.UUID
+	RecipientID      uuid.UUID
+	ActorID          uuid.UUID
+	ActorDisplayName string // populated by enriched queries
+	Type             Type
+	ReferenceID      uuid.UUID
+	RefType          RefType
+	Metadata         map[string]string
+	IsRead           bool
+	CreatedAt        time.Time
 }

@@ -32,9 +32,13 @@ func (r *NotificationRepository) Create(ctx context.Context, n *notification.Not
 
 func (r *NotificationRepository) FindByRecipient(ctx context.Context, recipientID uuid.UUID, limit, offset int) ([]*notification.Notification, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, recipient_id, actor_id, type, reference_id, ref_type, metadata, is_read, created_at
-		FROM notifications WHERE recipient_id=$1
-		ORDER BY created_at DESC
+		SELECT n.id, n.recipient_id, n.actor_id,
+		       COALESCE(u.display_name, 'Deleted User') AS actor_display_name,
+		       n.type, n.reference_id, n.ref_type, n.metadata, n.is_read, n.created_at
+		FROM notifications n
+		LEFT JOIN users u ON u.id = n.actor_id
+		WHERE n.recipient_id = $1
+		ORDER BY n.created_at DESC
 		LIMIT $2 OFFSET $3
 	`, recipientID, limit, offset)
 	if err != nil {
@@ -46,8 +50,8 @@ func (r *NotificationRepository) FindByRecipient(ctx context.Context, recipientI
 	for rows.Next() {
 		n := &notification.Notification{}
 		var metadata []byte
-		if err := rows.Scan(&n.ID, &n.RecipientID, &n.ActorID, &n.Type, &n.ReferenceID,
-			&n.RefType, &metadata, &n.IsRead, &n.CreatedAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.RecipientID, &n.ActorID, &n.ActorDisplayName,
+			&n.Type, &n.ReferenceID, &n.RefType, &metadata, &n.IsRead, &n.CreatedAt); err != nil {
 			return nil, err
 		}
 		if len(metadata) > 0 {

@@ -190,3 +190,27 @@ func (r *GroupRepository) FindPendingInvitationsByUser(ctx context.Context, user
 	}
 	return members, rows.Err()
 }
+
+func (r *GroupRepository) FindPendingInvitationsWithDetails(ctx context.Context, userID uuid.UUID) ([]*group.PendingInvitation, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT g.id, g.name, gm.invited_at
+		FROM group_members gm
+		JOIN diary_groups g ON g.id = gm.group_id
+		WHERE gm.user_id = $1 AND gm.invitation_status = 'pending'
+		ORDER BY gm.invited_at DESC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []*group.PendingInvitation
+	for rows.Next() {
+		p := &group.PendingInvitation{}
+		if err := rows.Scan(&p.GroupID, &p.GroupName, &p.InvitedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, p)
+	}
+	return result, rows.Err()
+}

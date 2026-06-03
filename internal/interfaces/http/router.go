@@ -55,6 +55,7 @@ func NewRouter(h Handlers, tokenManager *token.Manager, allowedOrigins []string)
 
 			r.Route("/groups", func(r chi.Router) {
 				r.Get("/", h.Group.List)
+				r.Get("/invitations", h.Group.GetPendingInvitations)
 				r.Post("/", h.Group.Create)
 
 				r.Route("/{groupId}", func(r chi.Router) {

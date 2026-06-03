@@ -21,4 +21,5 @@ type Repository interface {
 	FindActiveMembers(ctx context.Context, groupID uuid.UUID) ([]*Member, error)
 	FindActiveMembersWithDetails(ctx context.Context, groupID uuid.UUID) ([]*MemberDetail, error)
 	FindPendingInvitationsByUser(ctx context.Context, userID uuid.UUID) ([]*Member, error)
+	FindPendingInvitationsWithDetails(ctx context.Context, userID uuid.UUID) ([]*PendingInvitation, error)
 }
