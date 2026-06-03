@@ -89,6 +89,42 @@ func (r *NoteRepository) CreateShareToken(ctx context.Context, noteID uuid.UUID,
 	return err
 }
 
+func (r *NoteRepository) CalendarSummary(ctx context.Context, groupID uuid.UUID, month string, authorID *uuid.UUID) (map[string]int, error) {
+	// Parse month as first day of that month.
+	start, err := time.Parse("2006-01", month)
+	if err != nil {
+		return nil, fmt.Errorf("invalid month format: %w", err)
+	}
+	end := start.AddDate(0, 1, 0)
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT diary_date::text, COUNT(*)::int
+		FROM notes
+		WHERE group_id = $1
+		  AND diary_date >= $2
+		  AND diary_date < $3
+		  AND is_deleted = false
+		  AND ($4::uuid IS NULL OR author_id = $4)
+		GROUP BY diary_date
+		ORDER BY diary_date
+	`, groupID, start, end, authorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int)
+	for rows.Next() {
+		var dateStr string
+		var count int
+		if err := rows.Scan(&dateStr, &count); err != nil {
+			return nil, err
+		}
+		result[dateStr] = count
+	}
+	return result, rows.Err()
+}
+
 func (r *NoteRepository) FindByShareToken(ctx context.Context, token string) (*note.Note, error) {
 	n := &note.Note{}
 	err := r.pool.QueryRow(ctx, `

@@ -142,6 +142,13 @@ func (s *Service) GetByGroupAndDate(ctx context.Context, groupID, userID uuid.UU
 	return notes, nil
 }
 
+func (s *Service) CalendarSummary(ctx context.Context, groupID, userID uuid.UUID, month string, authorID *uuid.UUID) (map[string]int, error) {
+	if err := s.assertMembership(ctx, groupID, userID); err != nil {
+		return nil, err
+	}
+	return s.noteRepo.CalendarSummary(ctx, groupID, month, authorID)
+}
+
 func (s *Service) CreateShareToken(ctx context.Context, noteID, userID uuid.UUID) (string, error) {
 	n, err := s.noteRepo.FindByID(ctx, noteID)
 	if err != nil {

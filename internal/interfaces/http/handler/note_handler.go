@@ -60,6 +60,34 @@ func (h *NoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response.Created(w, dto.ToNoteResponse(n))
 }
 
+func (h *NoteHandler) CalendarSummary(w http.ResponseWriter, r *http.Request) {
+	userID := mustUserID(r)
+	groupID := mustUUID(r, "groupId")
+
+	month := r.URL.Query().Get("month")
+	if month == "" {
+		response.Error(w, apperror.BadRequest("month query param required (YYYY-MM)"))
+		return
+	}
+
+	var authorID *uuid.UUID
+	if a := r.URL.Query().Get("author"); a != "" {
+		id, err := uuid.Parse(a)
+		if err != nil {
+			response.Error(w, apperror.BadRequest("invalid author id"))
+			return
+		}
+		authorID = &id
+	}
+
+	summary, err := h.noteService.CalendarSummary(r.Context(), groupID, userID, month, authorID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.OK(w, summary)
+}
+
 func (h *NoteHandler) ListByDate(w http.ResponseWriter, r *http.Request) {
 	userID := mustUserID(r)
 	groupID := mustUUID(r, "groupId")

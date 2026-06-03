@@ -76,6 +76,7 @@ func registerAPIRoutes(r chi.Router, h Handlers, tokenManager *token.Manager) {
 
 				r.Route("/notes", func(r chi.Router) {
 					r.Post("/", h.Note.Create)
+					r.Get("/calendar", h.Note.CalendarSummary)
 					r.Get("/{date}", h.Note.ListByDate)
 				})
 			})

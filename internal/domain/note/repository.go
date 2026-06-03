@@ -16,4 +16,8 @@ type Repository interface {
 
 	CreateShareToken(ctx context.Context, noteID uuid.UUID, token string, expiresAt time.Time) error
 	FindByShareToken(ctx context.Context, token string) (*Note, error)
+
+	// CalendarSummary returns a map of "YYYY-MM-DD" → count of non-deleted notes
+	// for the given month. If authorID is non-nil, only that author's notes are counted.
+	CalendarSummary(ctx context.Context, groupID uuid.UUID, month string, authorID *uuid.UUID) (map[string]int, error)
 }
