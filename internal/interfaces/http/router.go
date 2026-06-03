@@ -18,6 +18,7 @@ type Handlers struct {
 	Reaction     *handler.ReactionHandler
 	Reply        *handler.ReplyHandler
 	Notification *handler.NotificationHandler
+	Friendship   *handler.FriendshipHandler
 }
 
 func NewRouter(h Handlers, tokenManager *token.Manager, allowedOrigins []string) http.Handler {
@@ -50,6 +51,7 @@ func NewRouter(h Handlers, tokenManager *token.Manager, allowedOrigins []string)
 			r.Use(middleware.Auth(tokenManager))
 
 			r.Get("/me", h.User.GetMe)
+			r.Get("/users/profile/{appId}", h.User.GetPublicProfile)
 
 			r.Route("/groups", func(r chi.Router) {
 				r.Get("/", h.Group.List)
@@ -57,6 +59,7 @@ func NewRouter(h Handlers, tokenManager *token.Manager, allowedOrigins []string)
 
 				r.Route("/{groupId}", func(r chi.Router) {
 					r.Get("/", h.Group.Get)
+					r.Get("/members", h.Group.GetMembers)
 					r.Post("/invite", h.Group.Invite)
 					r.Post("/accept", h.Group.AcceptInvitation)
 					r.Post("/decline", h.Group.DeclineInvitation)
@@ -95,6 +98,16 @@ func NewRouter(h Handlers, tokenManager *token.Manager, allowedOrigins []string)
 				r.Get("/", h.Notification.List)
 				r.Post("/read-all", h.Notification.MarkAllRead)
 				r.Post("/{notificationId}/read", h.Notification.MarkRead)
+			})
+
+			r.Route("/friends", func(r chi.Router) {
+				r.Get("/", h.Friendship.ListFriends)
+				r.Post("/request", h.Friendship.SendRequest)
+				r.Get("/requests", h.Friendship.ListRequests)
+				r.Post("/requests/{friendshipId}/accept", h.Friendship.Accept)
+				r.Post("/requests/{friendshipId}/decline", h.Friendship.Decline)
+				r.Delete("/{friendshipId}", h.Friendship.Remove)
+				r.Put("/{friendshipId}/label", h.Friendship.SetLabel)
 			})
 		})
 	})

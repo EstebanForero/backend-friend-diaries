@@ -19,5 +19,6 @@ type Repository interface {
 	RemoveMember(ctx context.Context, groupID, userID uuid.UUID) error
 	CountActiveMembers(ctx context.Context, groupID uuid.UUID) (int, error)
 	FindActiveMembers(ctx context.Context, groupID uuid.UUID) ([]*Member, error)
+	FindActiveMembersWithDetails(ctx context.Context, groupID uuid.UUID) ([]*MemberDetail, error)
 	FindPendingInvitationsByUser(ctx context.Context, userID uuid.UUID) ([]*Member, error)
 }

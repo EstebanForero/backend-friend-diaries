@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/friend-diaries/backend/internal/application/auth"
+	appfriendship "github.com/friend-diaries/backend/internal/application/friendship"
 	appgroup "github.com/friend-diaries/backend/internal/application/group"
 	appnotification "github.com/friend-diaries/backend/internal/application/notification"
 	appnote "github.com/friend-diaries/backend/internal/application/note"
@@ -43,11 +44,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	tokenManager := token.NewManager(
-		cfg.JWT.Secret,
-		cfg.JWT.AccessExpiry,
-		cfg.JWT.RefreshExpiry,
-	)
+	tokenManager := token.NewManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 
 	userRepo := repository.NewUserRepository(pool)
 	groupRepo := repository.NewGroupRepository(pool)
@@ -55,6 +52,7 @@ func main() {
 	reactionRepo := repository.NewReactionRepository(pool)
 	replyRepo := repository.NewReplyRepository(pool)
 	notificationRepo := repository.NewNotificationRepository(pool)
+	friendshipRepo := repository.NewFriendshipRepository(pool)
 
 	authService := auth.NewService(userRepo, tokenManager)
 	groupService := appgroup.NewService(groupRepo, userRepo, notificationRepo)
@@ -62,15 +60,17 @@ func main() {
 	reactionService := appreaction.NewService(reactionRepo, noteRepo, groupRepo, notificationRepo)
 	replyService := appreply.NewService(replyRepo, noteRepo, groupRepo, notificationRepo)
 	notificationService := appnotification.NewService(notificationRepo)
+	friendshipService := appfriendship.NewService(friendshipRepo, userRepo, notificationRepo)
 
 	handlers := httpinterface.Handlers{
 		Auth:         handler.NewAuthHandler(authService, tokenManager),
 		User:         handler.NewUserHandler(userRepo),
-		Group:        handler.NewGroupHandler(groupService),
+		Group:        handler.NewGroupHandler(groupService, groupRepo),
 		Note:         handler.NewNoteHandler(noteService),
 		Reaction:     handler.NewReactionHandler(reactionService),
 		Reply:        handler.NewReplyHandler(replyService),
 		Notification: handler.NewNotificationHandler(notificationService),
+		Friendship:   handler.NewFriendshipHandler(friendshipService),
 	}
 
 	router := httpinterface.NewRouter(handlers, tokenManager, cfg.CORS.AllowedOrigins)

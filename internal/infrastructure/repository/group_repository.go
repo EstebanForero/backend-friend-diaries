@@ -145,6 +145,31 @@ func (r *GroupRepository) FindActiveMembers(ctx context.Context, groupID uuid.UU
 	return members, rows.Err()
 }
 
+func (r *GroupRepository) FindActiveMembersWithDetails(ctx context.Context, groupID uuid.UUID) ([]*group.MemberDetail, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT gm.user_id::text, u.display_name, u.app_id, gm.role::text,
+		       to_char(gm.joined_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+		FROM group_members gm
+		JOIN users u ON u.id = gm.user_id
+		WHERE gm.group_id = $1 AND gm.invitation_status = 'accepted' AND u.deleted_at IS NULL
+		ORDER BY gm.joined_at ASC NULLS LAST
+	`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []*group.MemberDetail
+	for rows.Next() {
+		m := &group.MemberDetail{}
+		if err := rows.Scan(&m.UserID, &m.DisplayName, &m.AppID, &m.Role, &m.JoinedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, m)
+	}
+	return result, rows.Err()
+}
+
 func (r *GroupRepository) FindPendingInvitationsByUser(ctx context.Context, userID uuid.UUID) ([]*group.Member, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT group_id, user_id, role, invitation_status, invited_at, joined_at

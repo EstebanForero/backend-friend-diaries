@@ -48,6 +48,15 @@ func (m *Member) IsActive() bool {
 	return m.InvitationStatus == InvitationAccepted
 }
 
+// MemberDetail is a read model combining group_members + users data.
+type MemberDetail struct {
+	UserID      string
+	DisplayName string
+	AppID       string
+	Role        MemberRole
+	JoinedAt    *string
+}
+
 func (g *Group) MaxMembers(ownerIsPremium bool) int {
 	if ownerIsPremium {
 		return PremiumPlanMaxMembers

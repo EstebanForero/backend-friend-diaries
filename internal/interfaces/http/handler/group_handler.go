@@ -2,9 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
 	groupsvc "github.com/friend-diaries/backend/internal/application/group"
+	"github.com/friend-diaries/backend/internal/domain/group"
 	"github.com/friend-diaries/backend/internal/interfaces/dto"
 	"github.com/friend-diaries/backend/internal/interfaces/http/middleware"
 	"github.com/friend-diaries/backend/pkg/apperror"
@@ -15,10 +18,11 @@ import (
 
 type GroupHandler struct {
 	groupService *groupsvc.Service
+	groupRepo    group.Repository
 }
 
-func NewGroupHandler(groupService *groupsvc.Service) *GroupHandler {
-	return &GroupHandler{groupService: groupService}
+func NewGroupHandler(groupService *groupsvc.Service, groupRepo group.Repository) *GroupHandler {
+	return &GroupHandler{groupService: groupService, groupRepo: groupRepo}
 }
 
 func (h *GroupHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +80,34 @@ func (h *GroupHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.OK(w, dto.ToGroupResponse(g))
+}
+
+func (h *GroupHandler) GetMembers(w http.ResponseWriter, r *http.Request) {
+	userID := mustUserID(r)
+	groupID := mustUUID(r, "groupId")
+
+	// Verify requester is a member.
+	member, err := h.groupRepo.FindMember(r.Context(), groupID, userID)
+	if err != nil || !member.IsActive() {
+		response.Error(w, apperror.Forbidden("access denied"))
+		return
+	}
+
+	members, err := h.groupRepo.FindActiveMembers(r.Context(), groupID)
+	if err != nil {
+		response.Error(w, apperror.Internal("fetching members", err))
+		return
+	}
+
+	// Enrich with user details via a joined query on group_members.
+	result, err := h.groupRepo.FindActiveMembersWithDetails(r.Context(), groupID)
+	if err != nil {
+		response.Error(w, apperror.Internal("fetching member details", err))
+		return
+	}
+
+	_ = members // already fetched via enriched query
+	response.OK(w, result)
 }
 
 func (h *GroupHandler) Invite(w http.ResponseWriter, r *http.Request) {
@@ -147,4 +179,13 @@ func mustUUID(r *http.Request, param string) uuid.UUID {
 		return uuid.Nil
 	}
 	return id
+}
+
+// formatOptionalTime converts *time.Time to a *string for the DTO.
+func formatOptionalTime(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := fmt.Sprintf("%s", t.Format(time.RFC3339))
+	return &s
 }

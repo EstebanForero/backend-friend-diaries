@@ -1,6 +1,6 @@
 .PHONY: dev build run test tidy lint migrate-up migrate-down infra-up infra-down
 
-include .env
+-include .env
 export
 
 dev:
