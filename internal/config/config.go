@@ -43,7 +43,7 @@ const (
 	defaultJWTSecret        = "change-this-secret-in-production"
 	defaultJWTAccessExpiry  = 24 * time.Hour
 	defaultJWTRefreshExpiry = 7 * 24 * time.Hour
-	defaultCORSOrigins      = "http://localhost:5173"
+	defaultCORSOrigins      = "http://localhost:5173,http://tauri.localhost,https://tauri.localhost"
 )
 
 func Load() (*Config, error) {
