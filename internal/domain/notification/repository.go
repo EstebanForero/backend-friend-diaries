@@ -12,4 +12,5 @@ type Repository interface {
 	CountUnread(ctx context.Context, recipientID uuid.UUID) (int, error)
 	MarkRead(ctx context.Context, id, recipientID uuid.UUID) error
 	MarkAllRead(ctx context.Context, recipientID uuid.UUID) error
+	DeleteByRecipientReferenceType(ctx context.Context, recipientID, referenceID uuid.UUID, notificationType Type) error
 }

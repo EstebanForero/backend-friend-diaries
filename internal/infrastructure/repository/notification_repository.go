@@ -83,3 +83,11 @@ func (r *NotificationRepository) MarkAllRead(ctx context.Context, recipientID uu
 	`, recipientID)
 	return err
 }
+
+func (r *NotificationRepository) DeleteByRecipientReferenceType(ctx context.Context, recipientID, referenceID uuid.UUID, notificationType notification.Type) error {
+	_, err := r.pool.Exec(ctx, `
+		DELETE FROM notifications
+		WHERE recipient_id=$1 AND reference_id=$2 AND type=$3
+	`, recipientID, referenceID, notificationType)
+	return err
+}

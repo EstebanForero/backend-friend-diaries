@@ -41,7 +41,7 @@ func NewService(
 
 func (s *Service) Upsert(ctx context.Context, input UpsertInput) error {
 	if !reaction.IsValidType(input.ReactionType) {
-		return apperror.BadRequest("invalid reaction type")
+		return apperror.BadRequest("reaction must be a short emoji or label")
 	}
 
 	n, err := s.noteRepo.FindByID(ctx, input.NoteID)
@@ -74,8 +74,13 @@ func (s *Service) Upsert(ctx context.Context, input UpsertInput) error {
 			Type:        notification.TypeReaction,
 			ReferenceID: n.ID,
 			RefType:     notification.RefNote,
-			Metadata:    map[string]string{"reaction_type": string(input.ReactionType)},
-			CreatedAt:   now,
+			Metadata: map[string]string{
+				"reaction_type": string(input.ReactionType),
+				"group_id":      n.GroupID.String(),
+				"note_id":       n.ID.String(),
+				"date":          n.DiaryDate.Format("2006-01-02"),
+			},
+			CreatedAt: now,
 		})
 	}
 

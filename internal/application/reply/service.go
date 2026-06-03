@@ -77,7 +77,13 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*reply.Reply, 
 			Type:        notification.TypeReply,
 			ReferenceID: r.ID,
 			RefType:     notification.RefReply,
-			CreatedAt:   now,
+			Metadata: map[string]string{
+				"group_id": n.GroupID.String(),
+				"note_id":  n.ID.String(),
+				"reply_id": r.ID.String(),
+				"date":     n.DiaryDate.Format("2006-01-02"),
+			},
+			CreatedAt: now,
 		})
 	}
 

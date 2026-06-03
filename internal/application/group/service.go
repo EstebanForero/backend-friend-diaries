@@ -151,6 +151,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, groupID, userID uuid.UUI
 	if err := s.groupRepo.UpdateMember(ctx, m); err != nil {
 		return apperror.Internal("accepting invitation", err)
 	}
+	_ = s.notificationRepo.DeleteByRecipientReferenceType(ctx, userID, groupID, notification.TypeGroupInvitation)
 
 	g, _ := s.groupRepo.FindByID(ctx, groupID)
 	if g != nil {
@@ -179,7 +180,11 @@ func (s *Service) DeclineInvitation(ctx context.Context, groupID, userID uuid.UU
 	}
 
 	m.InvitationStatus = group.InvitationDeclined
-	return s.groupRepo.UpdateMember(ctx, m)
+	if err := s.groupRepo.UpdateMember(ctx, m); err != nil {
+		return err
+	}
+	_ = s.notificationRepo.DeleteByRecipientReferenceType(ctx, userID, groupID, notification.TypeGroupInvitation)
+	return nil
 }
 
 func (s *Service) Leave(ctx context.Context, groupID, userID uuid.UUID) error {

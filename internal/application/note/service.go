@@ -201,7 +201,12 @@ func (s *Service) notifyMembers(ctx context.Context, n *note.Note) {
 			Type:        notification.TypeNewNote,
 			ReferenceID: n.ID,
 			RefType:     notification.RefNote,
-			CreatedAt:   now,
+			Metadata: map[string]string{
+				"group_id": n.GroupID.String(),
+				"note_id":  n.ID.String(),
+				"date":     n.DiaryDate.Format("2006-01-02"),
+			},
+			CreatedAt: now,
 		})
 	}
 }

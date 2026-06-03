@@ -1,7 +1,9 @@
 package reaction
 
 import (
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -17,15 +19,9 @@ const (
 	TypeFav     Type = "favorite"
 )
 
-var AllTypes = []Type{TypeLove, TypeFunny, TypeSad, TypeSupport, TypeSeen, TypeFav}
-
 func IsValidType(t Type) bool {
-	for _, v := range AllTypes {
-		if v == t {
-			return true
-		}
-	}
-	return false
+	value := strings.TrimSpace(string(t))
+	return value != "" && utf8.RuneCountInString(value) <= 16
 }
 
 type Reaction struct {
