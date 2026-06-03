@@ -34,7 +34,7 @@ func NewRouter(h Handlers, tokenManager *token.Manager, allowedOrigins []string)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	r.Route("/api/v1", func(r chi.Router) {
+	r.Route("/api", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", h.Auth.Register)
 			r.Post("/login", h.Auth.Login)
