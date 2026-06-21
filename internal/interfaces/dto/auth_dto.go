@@ -6,9 +6,10 @@ import (
 )
 
 type RegisterRequest struct {
-	Email       string `json:"email"`
-	Password    string `json:"password"`
-	DisplayName string `json:"display_name"`
+	Email        string `json:"email"`
+	Password     string `json:"password"`
+	DisplayName  string `json:"display_name"`
+	ConsentGiven bool   `json:"consent_given"`
 }
 
 func (r *RegisterRequest) Validate() error {
@@ -23,6 +24,9 @@ func (r *RegisterRequest) Validate() error {
 	}
 	if len(r.DisplayName) > 50 {
 		return errMaxLength("display_name", 50)
+	}
+	if !r.ConsentGiven {
+		return errRequired("consent_given")
 	}
 	return nil
 }

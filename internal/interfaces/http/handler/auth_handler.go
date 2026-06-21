@@ -37,9 +37,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	u, err := h.authService.Register(r.Context(), authsvc.RegisterInput{
-		Email:       req.Email,
-		Password:    req.Password,
-		DisplayName: req.DisplayName,
+		Email:        req.Email,
+		Password:     req.Password,
+		DisplayName:  req.DisplayName,
+		ConsentGiven: req.ConsentGiven,
 	})
 	if err != nil {
 		response.Error(w, err)

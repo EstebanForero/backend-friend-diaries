@@ -10,12 +10,13 @@ import (
 )
 
 type CreateNoteRequest struct {
-	Content string `json:"content"`
-	Date    string `json:"date"`
+	Content  string   `json:"content"`
+	Date     string   `json:"date"`
+	ImageIDs []string `json:"image_ids,omitempty"`
 }
 
 func (r *CreateNoteRequest) Validate() error {
-	if r.Content == "" {
+	if r.Content == "" && len(r.ImageIDs) == 0 {
 		return errRequired("content")
 	}
 	if len(r.Content) > 10000 {
@@ -35,16 +36,23 @@ func (r *UpdateNoteRequest) Validate() error {
 	return nil
 }
 
+type NoteImageResponse struct {
+	ID       uuid.UUID `json:"id"`
+	MediaURL string    `json:"media_url"`
+	MimeType string    `json:"mime_type"`
+}
+
 type NoteResponse struct {
-	ID        uuid.UUID `json:"id"`
-	GroupID   uuid.UUID `json:"group_id"`
-	AuthorID  uuid.UUID `json:"author_id"`
-	DiaryDate string    `json:"diary_date"`
-	Content   string    `json:"content"`
-	IsEdited  bool      `json:"is_edited"`
-	IsDeleted bool      `json:"is_deleted"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uuid.UUID           `json:"id"`
+	GroupID   uuid.UUID           `json:"group_id"`
+	AuthorID  uuid.UUID           `json:"author_id"`
+	DiaryDate string              `json:"diary_date"`
+	Content   string              `json:"content"`
+	IsEdited  bool                `json:"is_edited"`
+	IsDeleted bool                `json:"is_deleted"`
+	Images    []NoteImageResponse `json:"images"`
+	CreatedAt time.Time           `json:"created_at"`
+	UpdatedAt time.Time           `json:"updated_at"`
 }
 
 func ToNoteResponse(n *note.Note) NoteResponse {
@@ -60,6 +68,7 @@ func ToNoteResponse(n *note.Note) NoteResponse {
 		Content:   content,
 		IsEdited:  n.IsEdited,
 		IsDeleted: n.IsDeleted,
+		Images:    []NoteImageResponse{},
 		CreatedAt: n.CreatedAt,
 		UpdatedAt: n.UpdatedAt,
 	}

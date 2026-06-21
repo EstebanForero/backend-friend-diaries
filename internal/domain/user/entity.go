@@ -7,15 +7,16 @@ import (
 )
 
 type User struct {
-	ID           uuid.UUID
-	Email        string
-	PasswordHash string
-	DisplayName  string
-	AppID        string
-	IsPremium    bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    *time.Time
+	ID             uuid.UUID
+	Email          string
+	PasswordHash   string
+	DisplayName    string
+	AppID          string
+	IsPremium      bool
+	ConsentGivenAt *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      *time.Time
 }
 
 func (u *User) IsDeleted() bool {

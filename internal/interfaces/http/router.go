@@ -19,6 +19,7 @@ type Handlers struct {
 	Reply        *handler.ReplyHandler
 	Notification *handler.NotificationHandler
 	Friendship   *handler.FriendshipHandler
+	Media        *handler.MediaHandler
 }
 
 func NewRouter(h Handlers, tokenManager *token.Manager, allowedOrigins []string) http.Handler {
@@ -119,5 +120,9 @@ func registerAPIRoutes(r chi.Router, h Handlers, tokenManager *token.Manager) {
 			r.Delete("/{friendshipId}", h.Friendship.Remove)
 			r.Put("/{friendshipId}/label", h.Friendship.SetLabel)
 		})
+
+		// Image upload & serving
+		r.Post("/media/upload", h.Media.Upload)
+		r.Get("/media/{imageId}", h.Media.Serve)
 	})
 }

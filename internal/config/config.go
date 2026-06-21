@@ -15,6 +15,7 @@ type Config struct {
 	Database DatabaseConfig
 	JWT      JWTConfig
 	CORS     CORSConfig
+	Storage  StorageConfig
 }
 
 type ServerConfig struct {
@@ -36,14 +37,26 @@ type CORSConfig struct {
 	AllowedOrigins []string
 }
 
+type StorageConfig struct {
+	Endpoint  string
+	AccessKey string
+	SecretKey string
+	Bucket    string
+	UseSSL    bool
+	PublicURL string
+}
+
 const (
 	defaultServerPort       = "8080"
 	defaultAppEnv           = "development"
 	defaultDatabaseURL      = "postgres://friend_diaries:friend_diaries_pass@localhost:5433/friend_diaries?sslmode=disable"
 	defaultJWTSecret        = "change-this-secret-in-production"
-	defaultJWTAccessExpiry  = 72 * time.Hour        // 3 days
-	defaultJWTRefreshExpiry = 30 * 24 * time.Hour   // 30 days
+	defaultJWTAccessExpiry  = 72 * time.Hour
+	defaultJWTRefreshExpiry = 30 * 24 * time.Hour
 	defaultCORSOrigins      = "http://localhost:5173,http://tauri.localhost,https://tauri.localhost"
+	defaultStorageEndpoint  = "localhost:9000"
+	defaultStorageBucket    = "friend-diaries"
+	defaultStoragePublicURL = "http://localhost:9000"
 )
 
 func Load() (*Config, error) {
@@ -71,6 +84,14 @@ func Load() (*Config, error) {
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: splitComma(getEnv("CORS_ALLOWED_ORIGINS", defaultCORSOrigins)),
+		},
+		Storage: StorageConfig{
+			Endpoint:  getEnv("STORAGE_ENDPOINT", defaultStorageEndpoint),
+			AccessKey: getEnv("STORAGE_ACCESS_KEY", "minioadmin"),
+			SecretKey: getEnv("STORAGE_SECRET_KEY", "minioadmin123"),
+			Bucket:    getEnv("STORAGE_BUCKET", defaultStorageBucket),
+			UseSSL:    getEnv("STORAGE_USE_SSL", "false") == "true",
+			PublicURL: getEnv("STORAGE_PUBLIC_URL", defaultStoragePublicURL),
 		},
 	}, nil
 }

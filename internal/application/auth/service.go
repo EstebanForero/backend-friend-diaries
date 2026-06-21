@@ -15,9 +15,10 @@ import (
 )
 
 type RegisterInput struct {
-	Email       string
-	Password    string
-	DisplayName string
+	Email        string
+	Password     string
+	DisplayName  string
+	ConsentGiven bool
 }
 
 type LoginInput struct {
@@ -58,14 +59,15 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (*user.User
 
 	now := time.Now().UTC()
 	u := &user.User{
-		ID:           uuid.New(),
-		Email:        strings.ToLower(input.Email),
-		PasswordHash: passwordHash,
-		DisplayName:  input.DisplayName,
-		AppID:        appID,
-		IsPremium:    false,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:             uuid.New(),
+		Email:          strings.ToLower(input.Email),
+		PasswordHash:   passwordHash,
+		DisplayName:    input.DisplayName,
+		AppID:          appID,
+		IsPremium:      true, // all new users start as premium
+		ConsentGivenAt: &now,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	if err := s.userRepo.Create(ctx, u); err != nil {

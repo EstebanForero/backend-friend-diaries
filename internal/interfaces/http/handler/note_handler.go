@@ -2,10 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	notesvc "github.com/friend-diaries/backend/internal/application/note"
+	"github.com/friend-diaries/backend/internal/infrastructure/repository"
 	"github.com/friend-diaries/backend/internal/interfaces/dto"
 	"github.com/friend-diaries/backend/pkg/apperror"
 	"github.com/friend-diaries/backend/pkg/response"
@@ -15,10 +17,33 @@ import (
 
 type NoteHandler struct {
 	noteService *notesvc.Service
+	imageRepo   *repository.NoteImageRepository
 }
 
-func NewNoteHandler(noteService *notesvc.Service) *NoteHandler {
-	return &NoteHandler{noteService: noteService}
+func NewNoteHandler(noteService *notesvc.Service, imageRepo *repository.NoteImageRepository) *NoteHandler {
+	return &NoteHandler{noteService: noteService, imageRepo: imageRepo}
+}
+
+func (h *NoteHandler) enrichWithImages(ctx interface{ Value(any) any }, notes []dto.NoteResponse) []dto.NoteResponse {
+	// noop ctx trick — we receive the real context in callers
+	return notes
+}
+
+func (h *NoteHandler) loadImages(r *http.Request, nr *dto.NoteResponse) {
+	if h.imageRepo == nil {
+		return
+	}
+	imgs, err := h.imageRepo.ListByNoteID(r.Context(), nr.ID)
+	if err != nil || len(imgs) == 0 {
+		return
+	}
+	for _, img := range imgs {
+		nr.Images = append(nr.Images, dto.NoteImageResponse{
+			ID:       img.ID,
+			MediaURL: fmt.Sprintf("/media/%s", img.ID),
+			MimeType: img.MimeType,
+		})
+	}
 }
 
 func (h *NoteHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +82,22 @@ func (h *NoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Created(w, dto.ToNoteResponse(n))
+	// Attach any pre-uploaded images to this note
+	if len(req.ImageIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(req.ImageIDs))
+		for _, s := range req.ImageIDs {
+			if id, err := uuid.Parse(s); err == nil {
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) > 0 {
+			_ = h.imageRepo.AttachToNote(r.Context(), ids, n.ID, userID)
+		}
+	}
+
+	nr := dto.ToNoteResponse(n)
+	h.loadImages(r, &nr)
+	response.Created(w, nr)
 }
 
 func (h *NoteHandler) CalendarSummary(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +147,9 @@ func (h *NoteHandler) ListByDate(w http.ResponseWriter, r *http.Request) {
 
 	result := make([]dto.NoteResponse, 0, len(notes))
 	for _, n := range notes {
-		result = append(result, dto.ToNoteResponse(n))
+		nr := dto.ToNoteResponse(n)
+		h.loadImages(r, &nr)
+		result = append(result, nr)
 	}
 
 	response.OK(w, result)

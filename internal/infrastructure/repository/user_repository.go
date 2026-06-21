@@ -22,9 +22,9 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 
 func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO users (id, email, password_hash, display_name, app_id, is_premium, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`, u.ID, u.Email, u.PasswordHash, u.DisplayName, u.AppID, u.IsPremium, u.CreatedAt, u.UpdatedAt)
+		INSERT INTO users (id, email, password_hash, display_name, app_id, is_premium, consent_given_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, u.ID, u.Email, u.PasswordHash, u.DisplayName, u.AppID, u.IsPremium, u.ConsentGivenAt, u.CreatedAt, u.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("inserting user: %w", err)
 	}
@@ -33,21 +33,21 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 
 func (r *UserRepository) FindByID(ctx context.Context, id uuid.UUID) (*user.User, error) {
 	return r.scanOne(ctx, `
-		SELECT id, email, password_hash, display_name, app_id, is_premium, created_at, updated_at, deleted_at
+		SELECT id, email, password_hash, display_name, app_id, is_premium, consent_given_at, created_at, updated_at, deleted_at
 		FROM users WHERE id = $1
 	`, id)
 }
 
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.User, error) {
 	return r.scanOne(ctx, `
-		SELECT id, email, password_hash, display_name, app_id, is_premium, created_at, updated_at, deleted_at
+		SELECT id, email, password_hash, display_name, app_id, is_premium, consent_given_at, created_at, updated_at, deleted_at
 		FROM users WHERE email = $1
 	`, email)
 }
 
 func (r *UserRepository) FindByAppID(ctx context.Context, appID string) (*user.User, error) {
 	return r.scanOne(ctx, `
-		SELECT id, email, password_hash, display_name, app_id, is_premium, created_at, updated_at, deleted_at
+		SELECT id, email, password_hash, display_name, app_id, is_premium, consent_given_at, created_at, updated_at, deleted_at
 		FROM users WHERE app_id = $1
 	`, appID)
 }
@@ -78,7 +78,7 @@ func (r *UserRepository) scanOne(ctx context.Context, query string, args ...any)
 	row := r.pool.QueryRow(ctx, query, args...)
 	u := &user.User{}
 	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.DisplayName, &u.AppID,
-		&u.IsPremium, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
+		&u.IsPremium, &u.ConsentGivenAt, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("user not found")

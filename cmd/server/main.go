@@ -15,6 +15,7 @@ import (
 	"github.com/friend-diaries/backend/internal/config"
 	"github.com/friend-diaries/backend/internal/infrastructure/database"
 	"github.com/friend-diaries/backend/internal/infrastructure/repository"
+	"github.com/friend-diaries/backend/internal/infrastructure/storage"
 	httpinterface "github.com/friend-diaries/backend/internal/interfaces/http"
 	"github.com/friend-diaries/backend/internal/interfaces/http/handler"
 	"github.com/friend-diaries/backend/pkg/token"
@@ -53,6 +54,17 @@ func main() {
 	replyRepo := repository.NewReplyRepository(pool)
 	notificationRepo := repository.NewNotificationRepository(pool)
 	friendshipRepo := repository.NewFriendshipRepository(pool)
+	imageRepo := repository.NewNoteImageRepository(pool)
+
+	// Object storage (MinIO)
+	storageClient, err := storage.NewClient(cfg.Storage)
+	if err != nil {
+		slog.Error("connecting to object storage", "error", err)
+		os.Exit(1)
+	}
+	if err := storageClient.EnsureBucket(context.Background()); err != nil {
+		slog.Warn("could not ensure storage bucket (storage may be unavailable)", "error", err)
+	}
 
 	authService := auth.NewService(userRepo, tokenManager)
 	groupService := appgroup.NewService(groupRepo, userRepo, notificationRepo)
@@ -66,11 +78,12 @@ func main() {
 		Auth:         handler.NewAuthHandler(authService, tokenManager),
 		User:         handler.NewUserHandler(userRepo),
 		Group:        handler.NewGroupHandler(groupService, groupRepo),
-		Note:         handler.NewNoteHandler(noteService),
+		Note:         handler.NewNoteHandler(noteService, imageRepo),
 		Reaction:     handler.NewReactionHandler(reactionService),
 		Reply:        handler.NewReplyHandler(replyService),
 		Notification: handler.NewNotificationHandler(notificationService),
 		Friendship:   handler.NewFriendshipHandler(friendshipService),
+		Media:        handler.NewMediaHandler(storageClient, imageRepo),
 	}
 
 	router := httpinterface.NewRouter(handlers, tokenManager, cfg.CORS.AllowedOrigins)
