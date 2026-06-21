@@ -36,6 +36,9 @@ func NoContent(w http.ResponseWriter) {
 
 func Error(w http.ResponseWriter, err error) {
 	if appErr, ok := apperror.As(err); ok {
+		if appErr.Code >= 500 {
+			slog.Error(appErr.Message, "error", appErr.Err)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(appErr.Code)
 		_ = json.NewEncoder(w).Encode(envelope{Error: appErr.Message})

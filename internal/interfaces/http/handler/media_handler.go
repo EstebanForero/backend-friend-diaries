@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -79,21 +80,28 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Info("media upload: processing image", "content_type", contentType, "size", header.Size)
+
 	// Resize and re-encode to WebP regardless of input format
-	imageData, _, _, procErr := storage.ProcessImage(file, contentType)
+	imageData, width, height, procErr := storage.ProcessImage(file, contentType)
 	if procErr != nil {
+		slog.Error("media upload: image processing failed", "content_type", contentType, "error", procErr)
 		response.Error(w, apperror.BadRequest("could not process image: "+procErr.Error()))
 		return
 	}
 	_ = ext // no longer needed — always .webp
+	slog.Info("media upload: image processed", "width", width, "height", height, "webp_size", len(imageData))
 
 	objectKey := fmt.Sprintf("images/%s/%s.webp", userID, uuid.New())
 	webpSize := int64(len(imageData))
 
+	slog.Info("media upload: uploading to storage", "key", objectKey)
 	if err := h.storage.Upload(r.Context(), objectKey, bytes.NewReader(imageData), webpSize, "image/webp"); err != nil {
+		slog.Error("media upload: storage upload failed", "key", objectKey, "error", err)
 		response.Error(w, apperror.Internal("uploading image", err))
 		return
 	}
+	slog.Info("media upload: stored in minio", "key", objectKey)
 
 	img := &repository.NoteImage{
 		UploaderID: userID,
@@ -102,6 +110,7 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		SizeBytes:  webpSize,
 	}
 	if err := h.imageRepo.Create(r.Context(), img); err != nil {
+		slog.Error("media upload: db insert failed", "key", objectKey, "error", err)
 		// best-effort cleanup
 		_ = h.storage.Delete(r.Context(), objectKey)
 		response.Error(w, apperror.Internal("saving image record", err))
