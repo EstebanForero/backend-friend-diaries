@@ -121,8 +121,10 @@ func registerAPIRoutes(r chi.Router, h Handlers, tokenManager *token.Manager) {
 			r.Put("/{friendshipId}/label", h.Friendship.SetLabel)
 		})
 
-		// Image upload & serving
+		// Image upload (auth required)
 		r.Post("/media/upload", h.Media.Upload)
-		r.Get("/media/{imageId}", h.Media.Serve)
 	})
+
+	// Image serving is public — the presigned MinIO URL is the auth mechanism
+	r.Get("/media/{imageId}", h.Media.Serve)
 }

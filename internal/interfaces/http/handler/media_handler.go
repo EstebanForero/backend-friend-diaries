@@ -123,15 +123,9 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Serve generates a presigned URL for an image and redirects to it.
-// Only authenticated users can access images.
+// Serve generates a presigned MinIO URL for an image and redirects to it.
+// No backend auth required — the presigned URL itself is time-limited and signed.
 func (h *MediaHandler) Serve(w http.ResponseWriter, r *http.Request) {
-	_, ok := middleware.UserIDFromContext(r.Context())
-	if !ok {
-		response.Error(w, apperror.Unauthorized("not authenticated"))
-		return
-	}
-
 	imageID, err := uuid.Parse(chi.URLParam(r, "imageId"))
 	if err != nil {
 		response.Error(w, apperror.BadRequest("invalid image ID"))
