@@ -3,11 +3,13 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	notesvc "github.com/friend-diaries/backend/internal/application/note"
 	"github.com/friend-diaries/backend/internal/infrastructure/repository"
+	"github.com/friend-diaries/backend/internal/infrastructure/storage"
 	"github.com/friend-diaries/backend/internal/interfaces/dto"
 	"github.com/friend-diaries/backend/pkg/apperror"
 	"github.com/friend-diaries/backend/pkg/response"
@@ -16,16 +18,16 @@ import (
 )
 
 type NoteHandler struct {
-	noteService *notesvc.Service
-	imageRepo   *repository.NoteImageRepository
+	noteService   *notesvc.Service
+	imageRepo     *repository.NoteImageRepository
+	storageClient *storage.Client
 }
 
-func NewNoteHandler(noteService *notesvc.Service, imageRepo *repository.NoteImageRepository) *NoteHandler {
-	return &NoteHandler{noteService: noteService, imageRepo: imageRepo}
+func NewNoteHandler(noteService *notesvc.Service, imageRepo *repository.NoteImageRepository, storageClient *storage.Client) *NoteHandler {
+	return &NoteHandler{noteService: noteService, imageRepo: imageRepo, storageClient: storageClient}
 }
 
 func (h *NoteHandler) enrichWithImages(ctx interface{ Value(any) any }, notes []dto.NoteResponse) []dto.NoteResponse {
-	// noop ctx trick — we receive the real context in callers
 	return notes
 }
 
@@ -38,9 +40,19 @@ func (h *NoteHandler) loadImages(r *http.Request, nr *dto.NoteResponse) {
 		return
 	}
 	for _, img := range imgs {
+		mediaURL := fmt.Sprintf("/api/media/%s", img.ID)
+		// Generate a direct presigned URL when storage is available so clients
+		// (especially Tauri/Android) don't need to follow a redirect.
+		if h.storageClient != nil {
+			if presigned, err := h.storageClient.PresignedURL(r.Context(), img.ObjectKey, 24*time.Hour); err == nil {
+				mediaURL = presigned
+			} else {
+				slog.Warn("could not generate presigned url", "image_id", img.ID, "error", err)
+			}
+		}
 		nr.Images = append(nr.Images, dto.NoteImageResponse{
 			ID:       img.ID,
-			MediaURL: fmt.Sprintf("/api/media/%s", img.ID),
+			MediaURL: mediaURL,
 			MimeType: img.MimeType,
 		})
 	}

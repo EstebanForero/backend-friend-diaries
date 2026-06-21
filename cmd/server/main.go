@@ -82,7 +82,7 @@ func main() {
 		Auth:         handler.NewAuthHandler(authService, tokenManager),
 		User:         handler.NewUserHandler(userRepo),
 		Group:        handler.NewGroupHandler(groupService, groupRepo),
-		Note:         handler.NewNoteHandler(noteService, imageRepo),
+		Note:         handler.NewNoteHandler(noteService, imageRepo, storageClient),
 		Reaction:     handler.NewReactionHandler(reactionService),
 		Reply:        handler.NewReplyHandler(replyService),
 		Notification: handler.NewNotificationHandler(notificationService),
