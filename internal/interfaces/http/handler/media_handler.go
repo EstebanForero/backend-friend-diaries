@@ -119,7 +119,7 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 
 	response.Created(w, UploadResponse{
 		ID:       img.ID.String(),
-		MediaURL: fmt.Sprintf("/media/%s", img.ID),
+		MediaURL: fmt.Sprintf("/api/media/%s", img.ID),
 	})
 }
 

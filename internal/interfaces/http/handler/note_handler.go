@@ -40,7 +40,7 @@ func (h *NoteHandler) loadImages(r *http.Request, nr *dto.NoteResponse) {
 	for _, img := range imgs {
 		nr.Images = append(nr.Images, dto.NoteImageResponse{
 			ID:       img.ID,
-			MediaURL: fmt.Sprintf("/media/%s", img.ID),
+			MediaURL: fmt.Sprintf("/api/media/%s", img.ID),
 			MimeType: img.MimeType,
 		})
 	}
