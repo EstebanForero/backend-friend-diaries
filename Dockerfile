@@ -1,6 +1,6 @@
 FROM golang:1.26-alpine AS builder
 
-RUN apk --no-cache add ca-certificates git tzdata
+RUN apk --no-cache add ca-certificates git tzdata gcc musl-dev libwebp-dev
 
 WORKDIR /app
 
@@ -9,8 +9,8 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-w -s" -o bin/server ./cmd/server
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-w -s -extldflags '-static'" -o bin/server ./cmd/server
 
 FROM scratch
 

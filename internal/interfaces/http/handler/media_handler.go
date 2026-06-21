@@ -79,8 +79,8 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to WebP regardless of input format
-	webpData, _, _, procErr := storage.ProcessImage(file, contentType)
+	// Resize and re-encode to WebP regardless of input format
+	imageData, _, _, procErr := storage.ProcessImage(file, contentType)
 	if procErr != nil {
 		response.Error(w, apperror.BadRequest("could not process image: "+procErr.Error()))
 		return
@@ -88,9 +88,9 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	_ = ext // no longer needed — always .webp
 
 	objectKey := fmt.Sprintf("images/%s/%s.webp", userID, uuid.New())
-	webpSize := int64(len(webpData))
+	webpSize := int64(len(imageData))
 
-	if err := h.storage.Upload(r.Context(), objectKey, bytes.NewReader(webpData), webpSize, "image/webp"); err != nil {
+	if err := h.storage.Upload(r.Context(), objectKey, bytes.NewReader(imageData), webpSize, "image/webp"); err != nil {
 		response.Error(w, apperror.Internal("uploading image", err))
 		return
 	}
