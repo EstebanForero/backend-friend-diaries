@@ -16,6 +16,7 @@ type Config struct {
 	JWT      JWTConfig
 	CORS     CORSConfig
 	Storage  StorageConfig
+	Push     PushConfig
 }
 
 type ServerConfig struct {
@@ -44,6 +45,12 @@ type StorageConfig struct {
 	Bucket    string
 	UseSSL    bool
 	PublicURL string
+}
+
+type PushConfig struct {
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	VAPIDSubject    string
 }
 
 const (
@@ -92,6 +99,11 @@ func Load() (*Config, error) {
 			Bucket:    getEnv("STORAGE_BUCKET", defaultStorageBucket),
 			UseSSL:    getEnv("STORAGE_USE_SSL", "false") == "true",
 			PublicURL: getEnv("STORAGE_PUBLIC_URL", defaultStoragePublicURL),
+		},
+		Push: PushConfig{
+			VAPIDPublicKey:  getEnv("VAPID_PUBLIC_KEY", ""),
+			VAPIDPrivateKey: getEnv("VAPID_PRIVATE_KEY", ""),
+			VAPIDSubject:    getEnv("VAPID_SUBJECT", "mailto:admin@ourdiary.app"),
 		},
 	}, nil
 }

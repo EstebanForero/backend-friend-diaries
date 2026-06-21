@@ -14,6 +14,7 @@ import (
 	appreply "github.com/friend-diaries/backend/internal/application/reply"
 	"github.com/friend-diaries/backend/internal/config"
 	"github.com/friend-diaries/backend/internal/infrastructure/database"
+	"github.com/friend-diaries/backend/internal/infrastructure/push"
 	"github.com/friend-diaries/backend/internal/infrastructure/repository"
 	"github.com/friend-diaries/backend/internal/infrastructure/storage"
 	httpinterface "github.com/friend-diaries/backend/internal/interfaces/http"
@@ -55,6 +56,7 @@ func main() {
 	notificationRepo := repository.NewNotificationRepository(pool)
 	friendshipRepo := repository.NewFriendshipRepository(pool)
 	imageRepo := repository.NewNoteImageRepository(pool)
+	pushSubRepo := repository.NewPushSubscriptionRepository(pool)
 
 	// Object storage (MinIO)
 	storageClient, err := storage.NewClient(cfg.Storage)
@@ -66,9 +68,11 @@ func main() {
 		slog.Warn("could not ensure storage bucket (storage may be unavailable)", "error", err)
 	}
 
+	pushSvc := push.NewService(pushSubRepo, cfg.Push)
+
 	authService := auth.NewService(userRepo, tokenManager)
 	groupService := appgroup.NewService(groupRepo, userRepo, notificationRepo)
-	noteService := appnote.NewService(noteRepo, groupRepo, userRepo, notificationRepo)
+	noteService := appnote.NewService(noteRepo, groupRepo, userRepo, notificationRepo, pushSvc)
 	reactionService := appreaction.NewService(reactionRepo, noteRepo, groupRepo, notificationRepo)
 	replyService := appreply.NewService(replyRepo, noteRepo, groupRepo, notificationRepo)
 	notificationService := appnotification.NewService(notificationRepo)
@@ -84,6 +88,7 @@ func main() {
 		Notification: handler.NewNotificationHandler(notificationService),
 		Friendship:   handler.NewFriendshipHandler(friendshipService),
 		Media:        handler.NewMediaHandler(storageClient, imageRepo),
+		Push:         handler.NewPushHandler(pushSubRepo, cfg.Push.VAPIDPublicKey),
 	}
 
 	router := httpinterface.NewRouter(handlers, tokenManager, cfg.CORS.AllowedOrigins)

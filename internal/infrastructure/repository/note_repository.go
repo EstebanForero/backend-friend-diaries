@@ -125,6 +125,85 @@ func (r *NoteRepository) CalendarSummary(ctx context.Context, groupID uuid.UUID,
 	return result, rows.Err()
 }
 
+func (r *NoteRepository) GetAdjacentDates(ctx context.Context, groupID uuid.UUID, currentDate time.Time, authorID *uuid.UUID) (prev, next *time.Time, err error) {
+	dateStr := currentDate.Format("2006-01-02")
+	today := time.Now().UTC().Format("2006-01-02")
+
+	var prevDate time.Time
+	prevErr := r.pool.QueryRow(ctx, `
+		SELECT diary_date FROM notes
+		WHERE group_id=$1 AND diary_date < $2::date AND is_deleted=false
+		  AND ($3::uuid IS NULL OR author_id=$3)
+		ORDER BY diary_date DESC LIMIT 1
+	`, groupID, dateStr, authorID).Scan(&prevDate)
+	if prevErr == nil {
+		t := prevDate.UTC()
+		prev = &t
+	}
+
+	var nextDate time.Time
+	nextErr := r.pool.QueryRow(ctx, `
+		SELECT diary_date FROM notes
+		WHERE group_id=$1 AND diary_date > $2::date AND diary_date <= $3::date AND is_deleted=false
+		  AND ($4::uuid IS NULL OR author_id=$4)
+		ORDER BY diary_date ASC LIMIT 1
+	`, groupID, dateStr, today, authorID).Scan(&nextDate)
+	if nextErr == nil {
+		t := nextDate.UTC()
+		next = &t
+	}
+
+	return prev, next, nil
+}
+
+func (r *NoteRepository) GetStreak(ctx context.Context, groupID, authorID uuid.UUID) (current int, recoverable bool, err error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT diary_date::date
+		FROM notes
+		WHERE group_id=$1 AND author_id=$2 AND is_deleted=false
+		ORDER BY diary_date DESC LIMIT 400
+	`, groupID, authorID)
+	if err != nil {
+		return 0, false, err
+	}
+	defer rows.Close()
+
+	dateSet := map[string]bool{}
+	for rows.Next() {
+		var d time.Time
+		if scanErr := rows.Scan(&d); scanErr != nil {
+			return 0, false, scanErr
+		}
+		dateSet[d.UTC().Format("2006-01-02")] = true
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return 0, false, rowsErr
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	todayStr := today.Format("2006-01-02")
+	yesterdayStr := today.AddDate(0, 0, -1).Format("2006-01-02")
+
+	start := today
+	if !dateSet[todayStr] {
+		if !dateSet[yesterdayStr] {
+			return 0, false, nil
+		}
+		start = today.AddDate(0, 0, -1)
+		recoverable = true
+	}
+
+	for i := 0; ; i++ {
+		day := start.AddDate(0, 0, -i)
+		if dateSet[day.Format("2006-01-02")] {
+			current++
+		} else {
+			break
+		}
+	}
+	return current, recoverable, nil
+}
+
 func (r *NoteRepository) FindByShareToken(ctx context.Context, token string) (*note.Note, error) {
 	n := &note.Note{}
 	err := r.pool.QueryRow(ctx, `

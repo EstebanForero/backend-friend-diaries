@@ -221,4 +221,66 @@ func (h *NoteHandler) GetByShareToken(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, dto.ToNoteResponse(n))
 }
 
+func (h *NoteHandler) Adjacent(w http.ResponseWriter, r *http.Request) {
+	userID := mustUserID(r)
+	groupID := mustUUID(r, "groupId")
+
+	dateStr := r.URL.Query().Get("date")
+	if dateStr == "" {
+		dateStr = time.Now().UTC().Format("2006-01-02")
+	}
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		response.Error(w, apperror.BadRequest("invalid date format, use YYYY-MM-DD"))
+		return
+	}
+
+	var authorID *uuid.UUID
+	if a := r.URL.Query().Get("author"); a != "" {
+		if id, err := uuid.Parse(a); err == nil {
+			authorID = &id
+		}
+	}
+
+	prev, next, err := h.noteService.GetAdjacentDates(r.Context(), groupID, userID, date, authorID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	type Result struct {
+		Prev *string `json:"prev"`
+		Next *string `json:"next"`
+	}
+	res := Result{}
+	if prev != nil {
+		s := prev.Format("2006-01-02")
+		res.Prev = &s
+	}
+	if next != nil {
+		s := next.Format("2006-01-02")
+		res.Next = &s
+	}
+	response.OK(w, res)
+}
+
+func (h *NoteHandler) Streak(w http.ResponseWriter, r *http.Request) {
+	userID := mustUserID(r)
+	groupID := mustUUID(r, "groupId")
+
+	authorID := userID
+	if a := r.URL.Query().Get("author"); a != "" {
+		if id, err := uuid.Parse(a); err == nil {
+			authorID = id
+		}
+	}
+
+	current, recoverable, err := h.noteService.GetStreak(r.Context(), groupID, userID, authorID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.OK(w, map[string]any{"current": current, "recoverable": recoverable})
+}
+
 var _ = uuid.Nil

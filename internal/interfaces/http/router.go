@@ -20,6 +20,7 @@ type Handlers struct {
 	Notification *handler.NotificationHandler
 	Friendship   *handler.FriendshipHandler
 	Media        *handler.MediaHandler
+	Push         *handler.PushHandler
 }
 
 func NewRouter(h Handlers, tokenManager *token.Manager, allowedOrigins []string) http.Handler {
@@ -34,6 +35,9 @@ func NewRouter(h Handlers, tokenManager *token.Manager, allowedOrigins []string)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	// Public push key endpoint
+	r.Get("/api/push/vapid-key", h.Push.VAPIDPublicKey)
 
 	registerAPIRoutes(r, h, tokenManager)
 	r.Route("/api", func(r chi.Router) {
@@ -78,8 +82,10 @@ func registerAPIRoutes(r chi.Router, h Handlers, tokenManager *token.Manager) {
 				r.Route("/notes", func(r chi.Router) {
 					r.Post("/", h.Note.Create)
 					r.Get("/calendar", h.Note.CalendarSummary)
+					r.Get("/adjacent", h.Note.Adjacent)
 					r.Get("/{date}", h.Note.ListByDate)
 				})
+				r.Get("/streak", h.Note.Streak)
 			})
 		})
 
@@ -123,6 +129,10 @@ func registerAPIRoutes(r chi.Router, h Handlers, tokenManager *token.Manager) {
 
 		// Image upload (auth required)
 		r.Post("/media/upload", h.Media.Upload)
+
+		// Push notification subscriptions
+		r.Post("/push/subscribe", h.Push.Subscribe)
+		r.Post("/push/unsubscribe", h.Push.Unsubscribe)
 	})
 
 	// Image serving is public — the presigned MinIO URL is the auth mechanism

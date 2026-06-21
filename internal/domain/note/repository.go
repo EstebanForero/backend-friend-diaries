@@ -20,4 +20,10 @@ type Repository interface {
 	// CalendarSummary returns a map of "YYYY-MM-DD" → count of non-deleted notes
 	// for the given month. If authorID is non-nil, only that author's notes are counted.
 	CalendarSummary(ctx context.Context, groupID uuid.UUID, month string, authorID *uuid.UUID) (map[string]int, error)
+
+	// GetAdjacentDates returns the nearest prev/next diary dates that have entries around currentDate.
+	GetAdjacentDates(ctx context.Context, groupID uuid.UUID, currentDate time.Time, authorID *uuid.UUID) (prev, next *time.Time, err error)
+
+	// GetStreak returns how many consecutive days the author has written in this group.
+	GetStreak(ctx context.Context, groupID, authorID uuid.UUID) (current int, recoverable bool, err error)
 }
