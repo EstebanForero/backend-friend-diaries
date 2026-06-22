@@ -36,9 +36,6 @@ func NewRouter(h Handlers, tokenManager *token.Manager, allowedOrigins []string)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Public push key endpoint
-	r.Get("/api/push/vapid-key", h.Push.VAPIDPublicKey)
-
 	registerAPIRoutes(r, h, tokenManager)
 	r.Route("/api", func(r chi.Router) {
 		registerAPIRoutes(r, h, tokenManager)
@@ -137,4 +134,7 @@ func registerAPIRoutes(r chi.Router, h Handlers, tokenManager *token.Manager) {
 
 	// Image serving is public — the presigned MinIO URL is the auth mechanism
 	r.Get("/media/{imageId}", h.Media.Serve)
+
+	// Push VAPID public key — public, no auth required
+	r.Get("/push/vapid-key", h.Push.VAPIDPublicKey)
 }
