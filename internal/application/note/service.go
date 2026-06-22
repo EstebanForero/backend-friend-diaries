@@ -55,7 +55,22 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*note.Note, er
 		return nil, err
 	}
 
-	if input.Date.After(time.Now().UTC()) {
+	// Validate the date against "today" in the diary's timezone, not UTC.
+	// A diary in UTC+9 may have a date one day ahead of UTC, which would
+	// be wrongly rejected if we compared against time.Now().UTC().
+	g, err := s.groupRepo.FindByID(ctx, input.GroupID)
+	if err != nil {
+		return nil, apperror.Internal("fetching group", err)
+	}
+	loc, locErr := time.LoadLocation(g.Timezone)
+	if locErr != nil {
+		loc = time.UTC
+	}
+	nowInTZ := time.Now().In(loc)
+	todayInTZ := time.Date(nowInTZ.Year(), nowInTZ.Month(), nowInTZ.Day(), 0, 0, 0, 0, loc)
+	// input.Date is parsed from a "YYYY-MM-DD" string; treat its Y/M/D as the diary date.
+	inputDay := time.Date(input.Date.Year(), input.Date.Month(), input.Date.Day(), 0, 0, 0, 0, loc)
+	if inputDay.After(todayInTZ) {
 		return nil, apperror.BadRequest("cannot create notes for future dates")
 	}
 
@@ -64,7 +79,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*note.Note, er
 		ID:        uuid.New(),
 		GroupID:   input.GroupID,
 		AuthorID:  input.AuthorID,
-		DiaryDate: input.Date.Truncate(24 * time.Hour),
+		DiaryDate: time.Date(input.Date.Year(), input.Date.Month(), input.Date.Day(), 0, 0, 0, 0, time.UTC),
 		Content:   input.Content,
 		CreatedAt: now,
 		UpdatedAt: now,
