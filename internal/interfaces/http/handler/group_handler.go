@@ -43,6 +43,9 @@ func (h *GroupHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Name:     req.Name,
 		OwnerID:  userID,
 		Timezone: req.Timezone,
+		Kind:     req.Kind,
+		Emoji:    req.Emoji,
+		Color:    req.Color,
 	})
 	if err != nil {
 		response.Error(w, err)
@@ -79,6 +82,34 @@ func (h *GroupHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	response.OK(w, dto.ToGroupResponse(g))
+}
+
+func (h *GroupHandler) Update(w http.ResponseWriter, r *http.Request) {
+	userID := mustUserID(r)
+	groupID := mustUUID(r, "groupId")
+	var req dto.CreateGroupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, apperror.BadRequest("invalid request body"))
+		return
+	}
+	if err := req.Validate(); err != nil {
+		response.Error(w, err)
+		return
+	}
+	g, err := h.groupService.Update(r.Context(), groupsvc.UpdateInput{
+		GroupID:  groupID,
+		UserID:   userID,
+		Name:     req.Name,
+		Timezone: req.Timezone,
+		Kind:     req.Kind,
+		Emoji:    req.Emoji,
+		Color:    req.Color,
+	})
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
 	response.OK(w, dto.ToGroupResponse(g))
 }
 

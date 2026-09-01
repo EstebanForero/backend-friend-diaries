@@ -8,6 +8,7 @@ import (
 
 type Note struct {
 	ID        uuid.UUID
+	ClientID  *uuid.UUID
 	GroupID   uuid.UUID
 	AuthorID  uuid.UUID
 	DiaryDate time.Time

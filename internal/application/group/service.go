@@ -15,12 +15,25 @@ type CreateInput struct {
 	Name     string
 	OwnerID  uuid.UUID
 	Timezone string
+	Kind     string
+	Emoji    string
+	Color    string
 }
 
 type InviteInput struct {
 	GroupID   uuid.UUID
 	InviterID uuid.UUID
 	InviteeID uuid.UUID
+}
+
+type UpdateInput struct {
+	GroupID  uuid.UUID
+	UserID   uuid.UUID
+	Name     string
+	Timezone string
+	Kind     string
+	Emoji    string
+	Color    string
 }
 
 type Service struct {
@@ -38,6 +51,18 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*group.Group, 
 	if tz == "" {
 		tz = "UTC"
 	}
+	kind := input.Kind
+	if kind == "" {
+		kind = "everyday"
+	}
+	emoji := input.Emoji
+	if emoji == "" {
+		emoji = "📖"
+	}
+	color := input.Color
+	if color == "" {
+		color = "rose"
+	}
 
 	now := time.Now().UTC()
 	g := &group.Group{
@@ -45,6 +70,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*group.Group, 
 		Name:      input.Name,
 		OwnerID:   input.OwnerID,
 		Timezone:  tz,
+		Kind:      kind,
+		Emoji:     emoji,
+		Color:     color,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -224,6 +252,25 @@ func (s *Service) GetGroup(ctx context.Context, groupID, userID uuid.UUID) (*gro
 		return nil, apperror.Forbidden("access denied")
 	}
 
+	return g, nil
+}
+
+func (s *Service) Update(ctx context.Context, input UpdateInput) (*group.Group, error) {
+	g, err := s.groupRepo.FindByID(ctx, input.GroupID)
+	if err != nil {
+		return nil, apperror.NotFound("memory book")
+	}
+	if g.OwnerID != input.UserID {
+		return nil, apperror.Forbidden("only the owner can edit this Memory Book")
+	}
+	g.Name = input.Name
+	g.Timezone = input.Timezone
+	g.Kind = input.Kind
+	g.Emoji = input.Emoji
+	g.Color = input.Color
+	if err := s.groupRepo.Update(ctx, g); err != nil {
+		return nil, apperror.Internal("updating memory book", err)
+	}
 	return g, nil
 }
 

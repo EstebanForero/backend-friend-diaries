@@ -10,7 +10,9 @@ import (
 type Repository interface {
 	Create(ctx context.Context, n *Note) error
 	FindByID(ctx context.Context, id uuid.UUID) (*Note, error)
+	FindByClientID(ctx context.Context, authorID, clientID uuid.UUID) (*Note, error)
 	FindByGroupAndDate(ctx context.Context, groupID uuid.UUID, date time.Time) ([]*Note, error)
+	FindRecentByGroup(ctx context.Context, groupID uuid.UUID, limit int) ([]*Note, error)
 	Update(ctx context.Context, n *Note) error
 	SoftDelete(ctx context.Context, id uuid.UUID) error
 

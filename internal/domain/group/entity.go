@@ -16,6 +16,9 @@ type Group struct {
 	Name      string
 	OwnerID   uuid.UUID
 	Timezone  string
+	Kind      string
+	Emoji     string
+	Color     string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

@@ -8,8 +8,8 @@ import (
 	"github.com/friend-diaries/backend/internal/application/auth"
 	appfriendship "github.com/friend-diaries/backend/internal/application/friendship"
 	appgroup "github.com/friend-diaries/backend/internal/application/group"
-	appnotification "github.com/friend-diaries/backend/internal/application/notification"
 	appnote "github.com/friend-diaries/backend/internal/application/note"
+	appnotification "github.com/friend-diaries/backend/internal/application/notification"
 	appreaction "github.com/friend-diaries/backend/internal/application/reaction"
 	appreply "github.com/friend-diaries/backend/internal/application/reply"
 	"github.com/friend-diaries/backend/internal/config"
@@ -87,7 +87,7 @@ func main() {
 		Reply:        handler.NewReplyHandler(replyService),
 		Notification: handler.NewNotificationHandler(notificationService),
 		Friendship:   handler.NewFriendshipHandler(friendshipService),
-		Media:        handler.NewMediaHandler(storageClient, imageRepo),
+		Media:        handler.NewMediaHandler(storageClient, imageRepo, userRepo),
 		Push:         handler.NewPushHandler(pushSubRepo, cfg.Push.VAPIDPublicKey),
 	}
 

@@ -22,18 +22,34 @@ func NewNoteRepository(pool *pgxpool.Pool) *NoteRepository {
 
 func (r *NoteRepository) Create(ctx context.Context, n *note.Note) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO notes (id, group_id, author_id, diary_date, content, is_edited, is_deleted, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, n.ID, n.GroupID, n.AuthorID, n.DiaryDate, n.Content, n.IsEdited, n.IsDeleted, n.CreatedAt, n.UpdatedAt)
+		INSERT INTO notes (id, client_id, group_id, author_id, diary_date, content, is_edited, is_deleted, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, n.ID, n.ClientID, n.GroupID, n.AuthorID, n.DiaryDate, n.Content, n.IsEdited, n.IsDeleted, n.CreatedAt, n.UpdatedAt)
 	return err
 }
 
 func (r *NoteRepository) FindByID(ctx context.Context, id uuid.UUID) (*note.Note, error) {
 	n := &note.Note{}
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, group_id, author_id, diary_date, content, is_edited, is_deleted, created_at, updated_at, deleted_at
+		SELECT id, client_id, group_id, author_id, diary_date, content, is_edited, is_deleted, created_at, updated_at, deleted_at
 		FROM notes WHERE id=$1
-	`, id).Scan(&n.ID, &n.GroupID, &n.AuthorID, &n.DiaryDate, &n.Content,
+	`, id).Scan(&n.ID, &n.ClientID, &n.GroupID, &n.AuthorID, &n.DiaryDate, &n.Content,
+		&n.IsEdited, &n.IsDeleted, &n.CreatedAt, &n.UpdatedAt, &n.DeletedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("note not found")
+		}
+		return nil, err
+	}
+	return n, nil
+}
+
+func (r *NoteRepository) FindByClientID(ctx context.Context, authorID, clientID uuid.UUID) (*note.Note, error) {
+	n := &note.Note{}
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, client_id, group_id, author_id, diary_date, content, is_edited, is_deleted, created_at, updated_at, deleted_at
+		FROM notes WHERE author_id=$1 AND client_id=$2
+	`, authorID, clientID).Scan(&n.ID, &n.ClientID, &n.GroupID, &n.AuthorID, &n.DiaryDate, &n.Content,
 		&n.IsEdited, &n.IsDeleted, &n.CreatedAt, &n.UpdatedAt, &n.DeletedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -46,7 +62,7 @@ func (r *NoteRepository) FindByID(ctx context.Context, id uuid.UUID) (*note.Note
 
 func (r *NoteRepository) FindByGroupAndDate(ctx context.Context, groupID uuid.UUID, date time.Time) ([]*note.Note, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, group_id, author_id, diary_date, content, is_edited, is_deleted, created_at, updated_at, deleted_at
+		SELECT id, client_id, group_id, author_id, diary_date, content, is_edited, is_deleted, created_at, updated_at, deleted_at
 		FROM notes WHERE group_id=$1 AND diary_date=$2
 		ORDER BY created_at ASC
 	`, groupID, date.Format("2006-01-02"))
@@ -58,7 +74,32 @@ func (r *NoteRepository) FindByGroupAndDate(ctx context.Context, groupID uuid.UU
 	var notes []*note.Note
 	for rows.Next() {
 		n := &note.Note{}
-		if err := rows.Scan(&n.ID, &n.GroupID, &n.AuthorID, &n.DiaryDate, &n.Content,
+		if err := rows.Scan(&n.ID, &n.ClientID, &n.GroupID, &n.AuthorID, &n.DiaryDate, &n.Content,
+			&n.IsEdited, &n.IsDeleted, &n.CreatedAt, &n.UpdatedAt, &n.DeletedAt); err != nil {
+			return nil, err
+		}
+		notes = append(notes, n)
+	}
+	return notes, rows.Err()
+}
+
+func (r *NoteRepository) FindRecentByGroup(ctx context.Context, groupID uuid.UUID, limit int) ([]*note.Note, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, client_id, group_id, author_id, diary_date, content, is_edited, is_deleted, created_at, updated_at, deleted_at
+		FROM notes
+		WHERE group_id=$1 AND is_deleted=false
+		ORDER BY created_at DESC
+		LIMIT $2
+	`, groupID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	notes := make([]*note.Note, 0, limit)
+	for rows.Next() {
+		n := &note.Note{}
+		if err := rows.Scan(&n.ID, &n.ClientID, &n.GroupID, &n.AuthorID, &n.DiaryDate, &n.Content,
 			&n.IsEdited, &n.IsDeleted, &n.CreatedAt, &n.UpdatedAt, &n.DeletedAt); err != nil {
 			return nil, err
 		}
@@ -207,12 +248,12 @@ func (r *NoteRepository) GetStreak(ctx context.Context, groupID, authorID uuid.U
 func (r *NoteRepository) FindByShareToken(ctx context.Context, token string) (*note.Note, error) {
 	n := &note.Note{}
 	err := r.pool.QueryRow(ctx, `
-		SELECT n.id, n.group_id, n.author_id, n.diary_date, n.content, n.is_edited, n.is_deleted,
+		SELECT n.id, n.client_id, n.group_id, n.author_id, n.diary_date, n.content, n.is_edited, n.is_deleted,
 		       n.created_at, n.updated_at, n.deleted_at
 		FROM notes n
 		JOIN note_share_tokens st ON st.note_id = n.id
 		WHERE st.token=$1 AND st.expires_at > NOW()
-	`, token).Scan(&n.ID, &n.GroupID, &n.AuthorID, &n.DiaryDate, &n.Content,
+	`, token).Scan(&n.ID, &n.ClientID, &n.GroupID, &n.AuthorID, &n.DiaryDate, &n.Content,
 		&n.IsEdited, &n.IsDeleted, &n.CreatedAt, &n.UpdatedAt, &n.DeletedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

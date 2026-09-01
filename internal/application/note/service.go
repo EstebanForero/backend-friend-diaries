@@ -16,6 +16,7 @@ import (
 type CreateInput struct {
 	GroupID  uuid.UUID
 	AuthorID uuid.UUID
+	ClientID *uuid.UUID
 	Content  string
 	Date     time.Time
 }
@@ -55,6 +56,14 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*note.Note, er
 		return nil, err
 	}
 
+	// Offline clients retry until they receive a response. Return the note from
+	// the first successful attempt so a lost response can never create a duplicate.
+	if input.ClientID != nil {
+		if existing, err := s.noteRepo.FindByClientID(ctx, input.AuthorID, *input.ClientID); err == nil {
+			return existing, nil
+		}
+	}
+
 	// Validate the date against "today" in the diary's timezone, not UTC.
 	// A diary in UTC+9 may have a date one day ahead of UTC, which would
 	// be wrongly rejected if we compared against time.Now().UTC().
@@ -77,6 +86,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*note.Note, er
 	now := time.Now().UTC()
 	n := &note.Note{
 		ID:        uuid.New(),
+		ClientID:  input.ClientID,
 		GroupID:   input.GroupID,
 		AuthorID:  input.AuthorID,
 		DiaryDate: time.Date(input.Date.Year(), input.Date.Month(), input.Date.Day(), 0, 0, 0, 0, time.UTC),
@@ -156,6 +166,19 @@ func (s *Service) GetByGroupAndDate(ctx context.Context, groupID, userID uuid.UU
 	notes, err := s.noteRepo.FindByGroupAndDate(ctx, groupID, date)
 	if err != nil {
 		return nil, apperror.Internal("fetching notes", err)
+	}
+
+	return notes, nil
+}
+
+func (s *Service) GetRecent(ctx context.Context, groupID, userID uuid.UUID, limit int) ([]*note.Note, error) {
+	if err := s.assertMembership(ctx, groupID, userID); err != nil {
+		return nil, err
+	}
+
+	notes, err := s.noteRepo.FindRecentByGroup(ctx, groupID, limit)
+	if err != nil {
+		return nil, apperror.Internal("fetching recent notes", err)
 	}
 
 	return notes, nil

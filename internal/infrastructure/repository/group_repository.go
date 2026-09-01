@@ -22,17 +22,17 @@ func NewGroupRepository(pool *pgxpool.Pool) *GroupRepository {
 
 func (r *GroupRepository) Create(ctx context.Context, g *group.Group) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO diary_groups (id, name, owner_id, timezone, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, g.ID, g.Name, g.OwnerID, g.Timezone, g.CreatedAt, g.UpdatedAt)
+		INSERT INTO diary_groups (id, name, owner_id, timezone, kind, emoji, color, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, g.ID, g.Name, g.OwnerID, g.Timezone, g.Kind, g.Emoji, g.Color, g.CreatedAt, g.UpdatedAt)
 	return err
 }
 
 func (r *GroupRepository) FindByID(ctx context.Context, id uuid.UUID) (*group.Group, error) {
 	g := &group.Group{}
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, name, owner_id, timezone, created_at, updated_at FROM diary_groups WHERE id=$1
-	`, id).Scan(&g.ID, &g.Name, &g.OwnerID, &g.Timezone, &g.CreatedAt, &g.UpdatedAt)
+		SELECT id, name, owner_id, timezone, kind, emoji, color, created_at, updated_at FROM diary_groups WHERE id=$1
+	`, id).Scan(&g.ID, &g.Name, &g.OwnerID, &g.Timezone, &g.Kind, &g.Emoji, &g.Color, &g.CreatedAt, &g.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("group not found")
@@ -44,7 +44,7 @@ func (r *GroupRepository) FindByID(ctx context.Context, id uuid.UUID) (*group.Gr
 
 func (r *GroupRepository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]*group.Group, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT g.id, g.name, g.owner_id, g.timezone, g.created_at, g.updated_at
+		SELECT g.id, g.name, g.owner_id, g.timezone, g.kind, g.emoji, g.color, g.created_at, g.updated_at
 		FROM diary_groups g
 		JOIN group_members gm ON gm.group_id = g.id
 		WHERE gm.user_id=$1 AND gm.invitation_status='accepted'
@@ -58,7 +58,7 @@ func (r *GroupRepository) FindByUserID(ctx context.Context, userID uuid.UUID) ([
 	var groups []*group.Group
 	for rows.Next() {
 		g := &group.Group{}
-		if err := rows.Scan(&g.ID, &g.Name, &g.OwnerID, &g.Timezone, &g.CreatedAt, &g.UpdatedAt); err != nil {
+		if err := rows.Scan(&g.ID, &g.Name, &g.OwnerID, &g.Timezone, &g.Kind, &g.Emoji, &g.Color, &g.CreatedAt, &g.UpdatedAt); err != nil {
 			return nil, err
 		}
 		groups = append(groups, g)
@@ -69,8 +69,8 @@ func (r *GroupRepository) FindByUserID(ctx context.Context, userID uuid.UUID) ([
 func (r *GroupRepository) Update(ctx context.Context, g *group.Group) error {
 	g.UpdatedAt = time.Now().UTC()
 	_, err := r.pool.Exec(ctx, `
-		UPDATE diary_groups SET name=$1, timezone=$2, updated_at=$3 WHERE id=$4
-	`, g.Name, g.Timezone, g.UpdatedAt, g.ID)
+		UPDATE diary_groups SET name=$1, timezone=$2, kind=$3, emoji=$4, color=$5, updated_at=$6 WHERE id=$7
+	`, g.Name, g.Timezone, g.Kind, g.Emoji, g.Color, g.UpdatedAt, g.ID)
 	return err
 }
 

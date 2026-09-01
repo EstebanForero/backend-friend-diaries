@@ -10,13 +10,15 @@ import (
 )
 
 type NoteImage struct {
-	ID         uuid.UUID
-	NoteID     *uuid.UUID
-	UploaderID uuid.UUID
-	ObjectKey  string
-	MimeType   string
-	SizeBytes  int64
-	CreatedAt  time.Time
+	ID              uuid.UUID
+	NoteID          *uuid.UUID
+	UploaderID      uuid.UUID
+	ObjectKey       string
+	MimeType        string
+	MediaKind       string
+	DurationSeconds *float64
+	SizeBytes       int64
+	CreatedAt       time.Time
 }
 
 type NoteImageRepository struct {
@@ -31,9 +33,9 @@ func (r *NoteImageRepository) Create(ctx context.Context, img *NoteImage) error 
 	img.ID = uuid.New()
 	img.CreatedAt = time.Now().UTC()
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO note_images (id, note_id, uploader_id, object_key, mime_type, size_bytes, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, img.ID, img.NoteID, img.UploaderID, img.ObjectKey, img.MimeType, img.SizeBytes, img.CreatedAt)
+		INSERT INTO note_images (id, note_id, uploader_id, object_key, mime_type, media_kind, duration_seconds, size_bytes, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, img.ID, img.NoteID, img.UploaderID, img.ObjectKey, img.MimeType, img.MediaKind, img.DurationSeconds, img.SizeBytes, img.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("inserting note_image: %w", err)
 	}
@@ -55,7 +57,7 @@ func (r *NoteImageRepository) AttachToNote(ctx context.Context, imageIDs []uuid.
 
 func (r *NoteImageRepository) ListByNoteID(ctx context.Context, noteID uuid.UUID) ([]NoteImage, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, note_id, uploader_id, object_key, mime_type, size_bytes, created_at
+		SELECT id, note_id, uploader_id, object_key, mime_type, media_kind, duration_seconds, size_bytes, created_at
 		FROM note_images WHERE note_id = $1 ORDER BY created_at ASC
 	`, noteID)
 	if err != nil {
@@ -67,7 +69,7 @@ func (r *NoteImageRepository) ListByNoteID(ctx context.Context, noteID uuid.UUID
 	for rows.Next() {
 		var img NoteImage
 		if err := rows.Scan(&img.ID, &img.NoteID, &img.UploaderID, &img.ObjectKey,
-			&img.MimeType, &img.SizeBytes, &img.CreatedAt); err != nil {
+			&img.MimeType, &img.MediaKind, &img.DurationSeconds, &img.SizeBytes, &img.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning note_image: %w", err)
 		}
 		images = append(images, img)
@@ -78,14 +80,32 @@ func (r *NoteImageRepository) ListByNoteID(ctx context.Context, noteID uuid.UUID
 func (r *NoteImageRepository) FindByID(ctx context.Context, id uuid.UUID) (*NoteImage, error) {
 	var img NoteImage
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, note_id, uploader_id, object_key, mime_type, size_bytes, created_at
+		SELECT id, note_id, uploader_id, object_key, mime_type, media_kind, duration_seconds, size_bytes, created_at
 		FROM note_images WHERE id = $1
 	`, id).Scan(&img.ID, &img.NoteID, &img.UploaderID, &img.ObjectKey,
-		&img.MimeType, &img.SizeBytes, &img.CreatedAt)
+		&img.MimeType, &img.MediaKind, &img.DurationSeconds, &img.SizeBytes, &img.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("finding note_image: %w", err)
 	}
 	return &img, nil
+}
+
+func (r *NoteImageRepository) CanAccess(ctx context.Context, id, userID uuid.UUID) bool {
+	var allowed bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM note_images media
+			LEFT JOIN notes n ON n.id = media.note_id
+			LEFT JOIN group_members gm
+			  ON gm.group_id = n.group_id
+			 AND gm.user_id = $2
+			 AND gm.invitation_status = 'accepted'
+			WHERE media.id = $1
+			  AND (media.uploader_id = $2 OR gm.user_id IS NOT NULL)
+		)
+	`, id, userID).Scan(&allowed)
+	return err == nil && allowed
 }
 
 func (r *NoteImageRepository) Delete(ctx context.Context, id uuid.UUID, uploaderID uuid.UUID) (string, error) {

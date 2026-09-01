@@ -70,6 +70,7 @@ func registerAPIRoutes(r chi.Router, h Handlers, tokenManager *token.Manager) {
 
 			r.Route("/{groupId}", func(r chi.Router) {
 				r.Get("/", h.Group.Get)
+				r.Put("/", h.Group.Update)
 				r.Get("/members", h.Group.GetMembers)
 				r.Post("/invite", h.Group.Invite)
 				r.Post("/accept", h.Group.AcceptInvitation)
@@ -80,6 +81,7 @@ func registerAPIRoutes(r chi.Router, h Handlers, tokenManager *token.Manager) {
 					r.Post("/", h.Note.Create)
 					r.Get("/calendar", h.Note.CalendarSummary)
 					r.Get("/adjacent", h.Note.Adjacent)
+					r.Get("/recent", h.Note.Recent)
 					r.Get("/{date}", h.Note.ListByDate)
 				})
 				r.Get("/streak", h.Note.Streak)
@@ -126,14 +128,12 @@ func registerAPIRoutes(r chi.Router, h Handlers, tokenManager *token.Manager) {
 
 		// Image upload (auth required)
 		r.Post("/media/upload", h.Media.Upload)
+		r.Get("/media/{imageId}", h.Media.Serve)
 
 		// Push notification subscriptions
 		r.Post("/push/subscribe", h.Push.Subscribe)
 		r.Post("/push/unsubscribe", h.Push.Unsubscribe)
 	})
-
-	// Image serving is public — the presigned MinIO URL is the auth mechanism
-	r.Get("/media/{imageId}", h.Media.Serve)
 
 	// Push VAPID public key — public, no auth required
 	r.Get("/push/vapid-key", h.Push.VAPIDPublicKey)

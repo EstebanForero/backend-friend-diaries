@@ -17,3 +17,7 @@ func errMinLength(field string, min int) error {
 func errMaxLength(field string, max int) error {
 	return apperror.BadRequest(fmt.Sprintf("%s must be at most %d characters", field, max))
 }
+
+func errInvalid(field string) error {
+	return apperror.BadRequest(fmt.Sprintf("%s is invalid", field))
+}

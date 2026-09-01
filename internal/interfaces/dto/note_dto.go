@@ -12,15 +12,21 @@ import (
 type CreateNoteRequest struct {
 	Content  string   `json:"content"`
 	Date     string   `json:"date"`
-	ImageIDs []string `json:"image_ids,omitempty"`
+	MediaIDs []string `json:"media_ids,omitempty"`
+	ClientID string   `json:"client_id,omitempty"`
 }
 
 func (r *CreateNoteRequest) Validate() error {
-	if r.Content == "" && len(r.ImageIDs) == 0 {
+	if r.Content == "" && len(r.MediaIDs) == 0 {
 		return errRequired("content")
 	}
 	if len(r.Content) > 10000 {
 		return errMaxLength("content", 10000)
+	}
+	if r.ClientID != "" {
+		if _, err := uuid.Parse(r.ClientID); err != nil {
+			return errInvalid("client_id")
+		}
 	}
 	return nil
 }
@@ -36,21 +42,24 @@ func (r *UpdateNoteRequest) Validate() error {
 	return nil
 }
 
-type NoteImageResponse struct {
-	ID       uuid.UUID `json:"id"`
-	MediaURL string    `json:"media_url"`
-	MimeType string    `json:"mime_type"`
+type NoteMediaResponse struct {
+	ID              uuid.UUID `json:"id"`
+	MediaURL        string    `json:"media_url"`
+	MimeType        string    `json:"mime_type"`
+	MediaKind       string    `json:"media_kind"`
+	DurationSeconds *float64  `json:"duration_seconds,omitempty"`
 }
 
 type NoteResponse struct {
 	ID        uuid.UUID           `json:"id"`
+	ClientID  *uuid.UUID          `json:"client_id,omitempty"`
 	GroupID   uuid.UUID           `json:"group_id"`
 	AuthorID  uuid.UUID           `json:"author_id"`
 	DiaryDate string              `json:"diary_date"`
 	Content   string              `json:"content"`
 	IsEdited  bool                `json:"is_edited"`
 	IsDeleted bool                `json:"is_deleted"`
-	Images    []NoteImageResponse `json:"images"`
+	Media     []NoteMediaResponse `json:"media"`
 	CreatedAt time.Time           `json:"created_at"`
 	UpdatedAt time.Time           `json:"updated_at"`
 }
@@ -62,13 +71,14 @@ func ToNoteResponse(n *note.Note) NoteResponse {
 	}
 	return NoteResponse{
 		ID:        n.ID,
+		ClientID:  n.ClientID,
 		GroupID:   n.GroupID,
 		AuthorID:  n.AuthorID,
 		DiaryDate: n.DiaryDate.Format("2006-01-02"),
 		Content:   content,
 		IsEdited:  n.IsEdited,
 		IsDeleted: n.IsDeleted,
-		Images:    []NoteImageResponse{},
+		Media:     []NoteMediaResponse{},
 		CreatedAt: n.CreatedAt,
 		UpdatedAt: n.UpdatedAt,
 	}

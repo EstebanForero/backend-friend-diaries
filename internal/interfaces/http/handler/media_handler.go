@@ -3,11 +3,14 @@ package handler
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/friend-diaries/backend/internal/domain/user"
 	"github.com/friend-diaries/backend/internal/infrastructure/repository"
 	"github.com/friend-diaries/backend/internal/infrastructure/storage"
 	"github.com/friend-diaries/backend/internal/interfaces/http/middleware"
@@ -18,8 +21,11 @@ import (
 )
 
 const (
-	maxImageSize    = 10 << 20 // 10 MB
-	presignedExpiry = 24 * time.Hour
+	maxImageSize     = 10 << 20  // 10 MB
+	maxVideoSize     = 32 << 20  // 32 MB after client-side compression
+	maxVideoDuration = 180.5     // Small allowance for container rounding.
+	maxVideoBitrate  = 1_600_000 // Average bits/second, including audio.
+	presignedExpiry  = 24 * time.Hour
 )
 
 var allowedMimeTypes = map[string]string{
@@ -33,15 +39,19 @@ var allowedMimeTypes = map[string]string{
 type MediaHandler struct {
 	storage   *storage.Client
 	imageRepo *repository.NoteImageRepository
+	userRepo  user.Repository
 }
 
-func NewMediaHandler(storage *storage.Client, imageRepo *repository.NoteImageRepository) *MediaHandler {
-	return &MediaHandler{storage: storage, imageRepo: imageRepo}
+func NewMediaHandler(storage *storage.Client, imageRepo *repository.NoteImageRepository, userRepo user.Repository) *MediaHandler {
+	return &MediaHandler{storage: storage, imageRepo: imageRepo, userRepo: userRepo}
 }
 
 type UploadResponse struct {
-	ID       string `json:"id"`
-	MediaURL string `json:"media_url"`
+	ID              string   `json:"id"`
+	MediaURL        string   `json:"media_url"`
+	MediaKind       string   `json:"media_kind"`
+	MimeType        string   `json:"mime_type"`
+	DurationSeconds *float64 `json:"duration_seconds,omitempty"`
 }
 
 // Upload handles multipart image upload, stores in MinIO, and returns the image ID.
@@ -53,14 +63,19 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(maxImageSize); err != nil {
-		response.Error(w, apperror.BadRequest("image too large (max 10 MB)"))
+	r.Body = http.MaxBytesReader(w, r.Body, maxVideoSize+(1<<20))
+	if err := r.ParseMultipartForm(maxVideoSize); err != nil {
+		response.Error(w, apperror.BadRequest("media upload is too large"))
 		return
 	}
 
-	file, header, err := r.FormFile("image")
+	file, header, err := r.FormFile("media")
 	if err != nil {
-		response.Error(w, apperror.BadRequest("missing image field"))
+		// Backwards compatibility with older clients.
+		file, header, err = r.FormFile("image")
+	}
+	if err != nil {
+		response.Error(w, apperror.BadRequest("missing media field"))
 		return
 	}
 	defer file.Close()
@@ -74,9 +89,18 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		contentType = strings.TrimSpace(contentType[:idx])
 	}
 
+	if strings.HasPrefix(contentType, "video/") {
+		h.uploadVideo(w, r, file, header.Size, contentType, userID)
+		return
+	}
+
 	ext, ok := allowedMimeTypes[contentType]
 	if !ok {
-		response.Error(w, apperror.BadRequest(fmt.Sprintf("unsupported image type: %s", contentType)))
+		response.Error(w, apperror.BadRequest(fmt.Sprintf("unsupported media type: %s", contentType)))
+		return
+	}
+	if header.Size > maxImageSize {
+		response.Error(w, apperror.BadRequest("image must be 10 MB or smaller"))
 		return
 	}
 
@@ -107,6 +131,7 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		UploaderID: userID,
 		ObjectKey:  objectKey,
 		MimeType:   "image/webp",
+		MediaKind:  "image",
 		SizeBytes:  webpSize,
 	}
 	if err := h.imageRepo.Create(r.Context(), img); err != nil {
@@ -118,17 +143,105 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Created(w, UploadResponse{
-		ID:       img.ID.String(),
-		MediaURL: fmt.Sprintf("/api/media/%s", img.ID),
+		ID:        img.ID.String(),
+		MediaURL:  fmt.Sprintf("/api/media/%s", img.ID),
+		MediaKind: "image",
+		MimeType:  "image/webp",
 	})
 }
 
-// Serve generates a presigned MinIO URL for an image and redirects to it.
-// No backend auth required — the presigned URL itself is time-limited and signed.
+func (h *MediaHandler) uploadVideo(
+	w http.ResponseWriter,
+	r *http.Request,
+	file io.Reader,
+	declaredSize int64,
+	contentType string,
+	userID uuid.UUID,
+) {
+	currentUser, err := h.userRepo.FindByID(r.Context(), userID)
+	if err != nil || !currentUser.IsPremium {
+		response.Error(w, apperror.Forbidden("video memories are available on Premium"))
+		return
+	}
+	if contentType != "video/webm" && contentType != "video/mp4" {
+		response.Error(w, apperror.BadRequest("videos must be compressed as WebM or MP4"))
+		return
+	}
+	if declaredSize <= 0 || declaredSize > maxVideoSize {
+		response.Error(w, apperror.BadRequest("compressed video must be 32 MB or smaller"))
+		return
+	}
+
+	data, err := io.ReadAll(io.LimitReader(file, maxVideoSize+1))
+	if err != nil || len(data) == 0 || len(data) > maxVideoSize {
+		response.Error(w, apperror.BadRequest("compressed video must be 32 MB or smaller"))
+		return
+	}
+	duration, err := storage.ProbeVideoDuration(data, contentType)
+	if err != nil {
+		response.Error(w, apperror.BadRequest("video container is invalid or missing duration metadata"))
+		return
+	}
+	if duration > maxVideoDuration {
+		response.Error(w, apperror.BadRequest("videos can be at most 3 minutes long"))
+		return
+	}
+	averageBitrate := float64(len(data)*8) / duration
+	if averageBitrate > maxVideoBitrate {
+		response.Error(w, apperror.BadRequest("video is not compressed enough; use the in-app compressor"))
+		return
+	}
+
+	ext := filepath.Ext(strings.TrimSpace(r.FormValue("filename")))
+	if contentType == "video/webm" {
+		ext = ".webm"
+	} else {
+		ext = ".mp4"
+	}
+	objectKey := fmt.Sprintf("videos/%s/%s%s", userID, uuid.New(), ext)
+	if err := h.storage.Upload(r.Context(), objectKey, bytes.NewReader(data), int64(len(data)), contentType); err != nil {
+		response.Error(w, apperror.Internal("uploading video", err))
+		return
+	}
+
+	media := &repository.NoteImage{
+		UploaderID:      userID,
+		ObjectKey:       objectKey,
+		MimeType:        contentType,
+		MediaKind:       "video",
+		DurationSeconds: &duration,
+		SizeBytes:       int64(len(data)),
+	}
+	if err := h.imageRepo.Create(r.Context(), media); err != nil {
+		_ = h.storage.Delete(r.Context(), objectKey)
+		response.Error(w, apperror.Internal("saving video record", err))
+		return
+	}
+
+	response.Created(w, UploadResponse{
+		ID:              media.ID.String(),
+		MediaURL:        fmt.Sprintf("/api/media/%s", media.ID),
+		MediaKind:       "video",
+		MimeType:        contentType,
+		DurationSeconds: &duration,
+	})
+}
+
+// Serve generates a short-lived signed object URL after checking that the
+// requester uploaded the media or belongs to the Memory Book containing it.
 func (h *MediaHandler) Serve(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		response.Error(w, apperror.Unauthorized("not authenticated"))
+		return
+	}
 	imageID, err := uuid.Parse(chi.URLParam(r, "imageId"))
 	if err != nil {
 		response.Error(w, apperror.BadRequest("invalid image ID"))
+		return
+	}
+	if !h.imageRepo.CanAccess(r.Context(), imageID, userID) {
+		response.Error(w, apperror.Forbidden("you do not have access to this media"))
 		return
 	}
 

@@ -10,6 +10,9 @@ import (
 type CreateGroupRequest struct {
 	Name     string `json:"name"`
 	Timezone string `json:"timezone"`
+	Kind     string `json:"kind"`
+	Emoji    string `json:"emoji"`
+	Color    string `json:"color"`
 }
 
 func (r *CreateGroupRequest) Validate() error {
@@ -31,6 +34,9 @@ type GroupResponse struct {
 	Name      string    `json:"name"`
 	OwnerID   uuid.UUID `json:"owner_id"`
 	Timezone  string    `json:"timezone"`
+	Kind      string    `json:"kind"`
+	Emoji     string    `json:"emoji"`
+	Color     string    `json:"color"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -40,16 +46,19 @@ func ToGroupResponse(g *group.Group) GroupResponse {
 		Name:      g.Name,
 		OwnerID:   g.OwnerID,
 		Timezone:  g.Timezone,
+		Kind:      g.Kind,
+		Emoji:     g.Emoji,
+		Color:     g.Color,
 		CreatedAt: g.CreatedAt,
 	}
 }
 
 type MemberResponse struct {
-	GroupID          uuid.UUID          `json:"group_id"`
-	UserID           uuid.UUID          `json:"user_id"`
-	Role             group.MemberRole   `json:"role"`
+	GroupID          uuid.UUID              `json:"group_id"`
+	UserID           uuid.UUID              `json:"user_id"`
+	Role             group.MemberRole       `json:"role"`
 	InvitationStatus group.InvitationStatus `json:"invitation_status"`
-	JoinedAt         *time.Time         `json:"joined_at"`
+	JoinedAt         *time.Time             `json:"joined_at"`
 }
 
 func ToMemberResponse(m *group.Member) MemberResponse {

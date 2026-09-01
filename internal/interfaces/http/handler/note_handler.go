@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	notesvc "github.com/friend-diaries/backend/internal/application/note"
@@ -27,11 +28,7 @@ func NewNoteHandler(noteService *notesvc.Service, imageRepo *repository.NoteImag
 	return &NoteHandler{noteService: noteService, imageRepo: imageRepo, storageClient: storageClient}
 }
 
-func (h *NoteHandler) enrichWithImages(ctx interface{ Value(any) any }, notes []dto.NoteResponse) []dto.NoteResponse {
-	return notes
-}
-
-func (h *NoteHandler) loadImages(r *http.Request, nr *dto.NoteResponse) {
+func (h *NoteHandler) loadMedia(r *http.Request, nr *dto.NoteResponse) {
 	if h.imageRepo == nil {
 		return
 	}
@@ -50,10 +47,12 @@ func (h *NoteHandler) loadImages(r *http.Request, nr *dto.NoteResponse) {
 				slog.Warn("could not generate presigned url", "image_id", img.ID, "error", err)
 			}
 		}
-		nr.Images = append(nr.Images, dto.NoteImageResponse{
-			ID:       img.ID,
-			MediaURL: mediaURL,
-			MimeType: img.MimeType,
+		nr.Media = append(nr.Media, dto.NoteMediaResponse{
+			ID:              img.ID,
+			MediaURL:        mediaURL,
+			MimeType:        img.MimeType,
+			MediaKind:       img.MediaKind,
+			DurationSeconds: img.DurationSeconds,
 		})
 	}
 }
@@ -83,9 +82,16 @@ func (h *NoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		date = parsed
 	}
 
+	var clientID *uuid.UUID
+	if req.ClientID != "" {
+		parsed, _ := uuid.Parse(req.ClientID) // validated above
+		clientID = &parsed
+	}
+
 	n, err := h.noteService.Create(r.Context(), notesvc.CreateInput{
 		GroupID:  groupID,
 		AuthorID: userID,
+		ClientID: clientID,
 		Content:  req.Content,
 		Date:     date,
 	})
@@ -95,9 +101,9 @@ func (h *NoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Attach any pre-uploaded images to this note
-	if len(req.ImageIDs) > 0 {
-		ids := make([]uuid.UUID, 0, len(req.ImageIDs))
-		for _, s := range req.ImageIDs {
+	if len(req.MediaIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(req.MediaIDs))
+		for _, s := range req.MediaIDs {
 			if id, err := uuid.Parse(s); err == nil {
 				ids = append(ids, id)
 			}
@@ -108,7 +114,7 @@ func (h *NoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nr := dto.ToNoteResponse(n)
-	h.loadImages(r, &nr)
+	h.loadMedia(r, &nr)
 	response.Created(w, nr)
 }
 
@@ -160,7 +166,43 @@ func (h *NoteHandler) ListByDate(w http.ResponseWriter, r *http.Request) {
 	result := make([]dto.NoteResponse, 0, len(notes))
 	for _, n := range notes {
 		nr := dto.ToNoteResponse(n)
-		h.loadImages(r, &nr)
+		h.loadMedia(r, &nr)
+		result = append(result, nr)
+	}
+
+	response.OK(w, result)
+}
+
+func (h *NoteHandler) Recent(w http.ResponseWriter, r *http.Request) {
+	userID := mustUserID(r)
+	groupID := mustUUID(r, "groupId")
+	limit := 8
+
+	if value := r.URL.Query().Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			response.Error(w, apperror.BadRequest("limit must be a number"))
+			return
+		}
+		limit = parsed
+	}
+	if limit < 1 {
+		limit = 1
+	}
+	if limit > 20 {
+		limit = 20
+	}
+
+	notes, err := h.noteService.GetRecent(r.Context(), groupID, userID, limit)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	result := make([]dto.NoteResponse, 0, len(notes))
+	for _, n := range notes {
+		nr := dto.ToNoteResponse(n)
+		h.loadMedia(r, &nr)
 		result = append(result, nr)
 	}
 
@@ -192,7 +234,9 @@ func (h *NoteHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.OK(w, dto.ToNoteResponse(n))
+	nr := dto.ToNoteResponse(n)
+	h.loadMedia(r, &nr)
+	response.OK(w, nr)
 }
 
 func (h *NoteHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -230,7 +274,9 @@ func (h *NoteHandler) GetByShareToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.OK(w, dto.ToNoteResponse(n))
+	nr := dto.ToNoteResponse(n)
+	h.loadMedia(r, &nr)
+	response.OK(w, nr)
 }
 
 func (h *NoteHandler) Adjacent(w http.ResponseWriter, r *http.Request) {
